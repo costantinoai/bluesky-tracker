@@ -1,0 +1,85 @@
+version: '3.8'
+
+# Bluesky Tracker with Caddy Reverse Proxy
+# Automatic HTTPS with zero configuration
+
+services:
+  bluesky-tracker:
+    image: costantinoai/bluesky-tracker:latest
+    container_name: bluesky-tracker
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    networks:
+      - caddy
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+    networks:
+      - caddy
+
+networks:
+  caddy:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+# Create Caddyfile in the same directory:
+# ---
+# bluesky.yourdomain.com {
+#     reverse_proxy bluesky-tracker:8095
+#
+#     # Optional: Basic authentication
+#     # basicauth /* {
+#     #     admin $2a$14$hashed_password
+#     # }
+#
+#     # Optional: Rate limiting
+#     rate_limit {
+#         zone bluesky {
+#             match {
+#                 path *
+#             }
+#             key {remote_host}
+#             window 1m
+#             max_requests 100
+#         }
+#     }
+#
+#     # Headers
+#     header {
+#         # Security headers
+#         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+#         X-Content-Type-Options "nosniff"
+#         X-Frame-Options "SAMEORIGIN"
+#         Referrer-Policy "strict-origin-when-cross-origin"
+#     }
+#
+#     # Logging
+#     log {
+#         output file /var/log/caddy/bluesky.log
+#         format json
+#     }
+# }
+# ---
+
+# Setup:
+# 1. Create Caddyfile (see above)
+# 2. Update bluesky.yourdomain.com
+# 3. Point DNS A record to your server IP
+# 4. docker-compose up -d
+# Caddy will automatically obtain and renew SSL certificates!

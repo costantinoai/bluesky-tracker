@@ -1,0 +1,39 @@
+# Homepage Widget Configuration
+# https://gethomepage.dev/
+
+# Add to your services.yaml:
+
+- Social Analytics:
+    - Bluesky Tracker:
+        icon: bluesky
+        href: http://bluesky-tracker:8095/report
+        description: Follower analytics and engagement tracking
+        widget:
+          type: customapi
+          url: http://bluesky-tracker:8095/api/stats
+          refreshInterval: 300000  # 5 minutes
+          mappings:
+            - field: follower_count
+              label: Followers
+              format: number
+            - field: following_count
+              label: Following
+              format: number
+            - field: unfollowers_30d
+              label: 30d Unfollowers
+              format: number
+              color: red
+            - field: non_mutual_following
+              label: Not Following Back
+              format: number
+              color: orange
+
+# Alternative: Simple link without widget
+# - Social:
+#     - Bluesky Tracker:
+#         icon: bluesky
+#         href: http://bluesky-tracker:8095/report
+#         description: View your Bluesky analytics
+
+# For external access (with reverse proxy):
+# Replace http://bluesky-tracker:8095 with https://your-domain.com

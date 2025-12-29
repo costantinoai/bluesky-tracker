@@ -1,0 +1,157 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for changelog
+
+      - name: Generate changelog
+        id: changelog
+        uses: orhun/git-cliff-action@v3
+        with:
+          config: cliff.toml
+          args: --latest --strip all
+        env:
+          OUTPUT: CHANGELOG.md
+
+      - name: Get version from tag
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create release notes
+        id: release_notes
+        run: |
+          cat << 'EOF' > release_body.md
+          ## Docker Images
+
+          This release is available on both Docker Hub and GitHub Container Registry:
+
+          ### Docker Hub (Recommended)
+          ```bash
+          docker pull costantinoai/bluesky-tracker:${{ steps.get_version.outputs.VERSION }}
+          docker pull costantinoai/bluesky-tracker:latest
+          ```
+
+          ### GitHub Container Registry
+          ```bash
+          docker pull ghcr.io/costantinoai/bluesky-tracker:${{ steps.get_version.outputs.VERSION }}
+          docker pull ghcr.io/costantinoai/bluesky-tracker:latest
+          ```
+
+          ### Supported Platforms
+          - `linux/amd64` - Intel/AMD servers, Intel Macs
+          - `linux/arm64` - ARM servers, M1/M2 Macs, Raspberry Pi 4/5
+          - `linux/arm/v7` - Raspberry Pi 3 and older
+
+          ---
+
+          ## Quick Start
+
+          ### One-Command Setup
+          ```bash
+          curl -sSL https://raw.githubusercontent.com/costantinoai/bluesky-tracker/main/setup.sh | bash
+          ```
+
+          ### Docker Compose
+          ```bash
+          curl -O https://raw.githubusercontent.com/costantinoai/bluesky-tracker/main/docker-compose.selfhost.yml
+          mv docker-compose.selfhost.yml docker-compose.yml
+          curl -O https://raw.githubusercontent.com/costantinoai/bluesky-tracker/main/.env.example
+          cp .env.example .env
+          # Edit .env with your credentials
+          docker compose up -d
+          ```
+
+          ### Docker Run
+          ```bash
+          docker run -d \
+            --name bluesky-tracker \
+            -p 8095:8095 \
+            -v $(pwd)/data:/app/data \
+            -e BLUESKY_HANDLE=yourname.bsky.social \
+            -e BLUESKY_APP_PASSWORD=your-app-password \
+            --restart unless-stopped \
+            costantinoai/bluesky-tracker:${{ steps.get_version.outputs.VERSION }}
+          ```
+
+          ---
+
+          ## What's Changed
+
+          ${{ steps.changelog.outputs.content }}
+
+          ---
+
+          ## Upgrading
+
+          ### Docker Compose
+          ```bash
+          docker compose pull
+          docker compose up -d
+          ```
+
+          ### Docker Run
+          ```bash
+          docker pull costantinoai/bluesky-tracker:${{ steps.get_version.outputs.VERSION }}
+          docker stop bluesky-tracker
+          docker rm bluesky-tracker
+          # Re-run the docker run command above
+          ```
+
+          ---
+
+          ## Documentation
+
+          - [Installation Guide](https://github.com/costantinoai/bluesky-tracker/blob/main/INSTALLATION.md)
+          - [Troubleshooting](https://github.com/costantinoai/bluesky-tracker/blob/main/TROUBLESHOOTING.md)
+          - [Security](https://github.com/costantinoai/bluesky-tracker/blob/main/SECURITY.md)
+
+          ## Support
+
+          - [Report Issues](https://github.com/costantinoai/bluesky-tracker/issues)
+          - [Discussions](https://github.com/costantinoai/bluesky-tracker/discussions)
+
+          **Full Changelog**: https://github.com/costantinoai/bluesky-tracker/compare/v3.0.0...${{ steps.get_version.outputs.TAG_NAME }}
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: release_body.md
+          draft: false
+          prerelease: false
+          files: |
+            docker-compose.selfhost.yml
+            .env.example
+            setup.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update release summary
+        run: |
+          echo "## Release ${{ steps.get_version.outputs.TAG_NAME }} Published! 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Docker Images" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker Hub: \`costantinoai/bluesky-tracker:${{ steps.get_version.outputs.VERSION }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- GHCR: \`ghcr.io/costantinoai/bluesky-tracker:${{ steps.get_version.outputs.VERSION }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Quick Install" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "curl -sSL https://raw.githubusercontent.com/costantinoai/bluesky-tracker/main/setup.sh | bash" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

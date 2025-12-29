@@ -1,0 +1,139 @@
+version: '3.8'
+
+# ============================================================================
+# Bluesky Tracker - Portainer Stack Template
+# ============================================================================
+# This stack can be deployed directly in Portainer's stack interface.
+#
+# Deployment Steps:
+#   1. In Portainer, go to Stacks → Add stack
+#   2. Name it: bluesky-tracker
+#   3. Paste this entire file into the Web editor
+#   4. Scroll down to "Environment variables"
+#   5. Add the required variables (see below)
+#   6. Click "Deploy the stack"
+#
+# Required Environment Variables:
+#   - BLUESKY_HANDLE: Your Bluesky handle (e.g., yourname.bsky.social)
+#   - BLUESKY_APP_PASSWORD: App password from https://bsky.app/settings/app-passwords
+#
+# Optional Environment Variables:
+#   - TZ: Timezone (default: Europe/Brussels)
+#   - PORT: Web interface port (default: 8095)
+#
+# Documentation: https://github.com/costantinoai/bluesky-tracker
+# ============================================================================
+
+services:
+  bluesky-tracker:
+    # Pre-built multi-architecture image
+    # Automatically selects correct architecture for your system
+    image: costantinoai/bluesky-tracker:latest
+
+    container_name: bluesky-tracker
+
+    # Web interface access
+    ports:
+      - "${PORT:-8095}:8095"
+
+    # Persistent data storage using named volume
+    volumes:
+      - bluesky-data:/app/data
+
+    # Environment variables (set these in Portainer UI)
+    environment:
+      # REQUIRED: Set these in Portainer's environment variables section
+      - BLUESKY_HANDLE=${BLUESKY_HANDLE}
+      - BLUESKY_APP_PASSWORD=${BLUESKY_APP_PASSWORD}
+
+      # OPTIONAL: Customize if needed
+      - TZ=${TZ:-Europe/Brussels}
+      - PORT=${PORT:-8095}
+
+    # Always restart unless manually stopped
+    restart: unless-stopped
+
+    # Health monitoring
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8095/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+
+    # Labels for better organization in Portainer
+    labels:
+      - "com.portainer.category=social"
+      - "com.portainer.description=Bluesky follower analytics and tracking"
+      - "com.portainer.icon=https://bsky.app/static/favicon-32x32.png"
+
+# Named volume for persistent data
+volumes:
+  bluesky-data:
+    driver: local
+    labels:
+      - "com.portainer.backup=true"
+
+# ============================================================================
+# Portainer Environment Variables Setup
+# ============================================================================
+# After pasting this stack, add these environment variables in Portainer:
+#
+# 1. Click "Add an environment variable" below the Web editor
+#
+# 2. Add REQUIRED variables:
+#    Name:  BLUESKY_HANDLE
+#    Value: yourname.bsky.social
+#
+#    Name:  BLUESKY_APP_PASSWORD
+#    Value: your-app-password-from-bluesky
+#
+# 3. Add OPTIONAL variables (if you want to customize):
+#    Name:  TZ
+#    Value: America/New_York  (or your timezone)
+#
+#    Name:  PORT
+#    Value: 8095  (or your preferred port)
+#
+# ============================================================================
+# Getting Your App Password
+# ============================================================================
+# 1. Log in to Bluesky: https://bsky.app
+# 2. Go to Settings → App Passwords
+#    Direct link: https://bsky.app/settings/app-passwords
+# 3. Click "Add App Password"
+# 4. Name it: "Bluesky Tracker"
+# 5. Copy the generated password
+# 6. Paste it as BLUESKY_APP_PASSWORD in Portainer
+#
+# ============================================================================
+# After Deployment
+# ============================================================================
+# Access your tracker at:
+#   http://your-server-ip:8095/report
+#
+# Check logs in Portainer:
+#   Containers → bluesky-tracker → Logs
+#
+# Manual data collection:
+#   curl -X POST http://your-server-ip:8095/api/collect
+#
+# ============================================================================
+# Updating
+# ============================================================================
+# In Portainer:
+#   1. Go to Stacks → bluesky-tracker
+#   2. Click "Pull and redeploy"
+#
+# This will download the latest version and restart the container.
+#
+# ============================================================================

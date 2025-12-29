@@ -1,0 +1,25 @@
+{
+  "type": "http",
+  "name": "Bluesky Tracker",
+  "url": "http://bluesky-tracker:8095/health",
+  "method": "GET",
+  "interval": 60,
+  "retryInterval": 60,
+  "resendInterval": 0,
+  "maxretries": 3,
+  "upsideDown": false,
+  "acceptedStatusCodes": ["200"],
+  "description": "Monitors Bluesky Tracker health endpoint",
+  "ignoreTls": false,
+  "expiryNotification": false,
+  "maxredirects": 10,
+  "headers": null,
+  "body": null,
+  "notification": {
+    "enabled": true,
+    "notificationIDList": []
+  },
+  "tags": ["social", "bluesky", "analytics"],
+  "maintenance": false,
+  "authMethod": null
+}

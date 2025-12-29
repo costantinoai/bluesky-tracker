@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  bluesky-tracker-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bluesky-tracker-test
+    ports:
+      - "8095:8095"
+    environment:
+      - BLUESKY_HANDLE=test.bsky.social
+      - BLUESKY_APP_PASSWORD=test-password
+      - DATABASE_PATH=/tmp/test_bluesky.db
+      - PORT=8095
+    volumes:
+      - /tmp:/tmp
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8095/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - test-network
+
+  test-runner:
+    image: python:3.11-slim
+    container_name: test-runner
+    depends_on:
+      bluesky-tracker-test:
+        condition: service_healthy
+    command: >
+      /bin/bash -c "
+      apt-get update && apt-get install -y curl &&
+      echo 'Testing health endpoint...' &&
+      curl -f http://bluesky-tracker-test:8095/health &&
+      echo 'Health check passed!' &&
+      echo 'Testing metrics endpoint...' &&
+      curl -f http://bluesky-tracker-test:8095/metrics &&
+      echo 'Metrics check passed!' &&
+      echo 'Testing API stats endpoint...' &&
+      curl -f http://bluesky-tracker-test:8095/api/stats &&
+      echo 'API stats check passed!' &&
+      echo 'All integration tests passed!'
+      "
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge

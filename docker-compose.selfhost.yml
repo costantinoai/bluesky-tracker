@@ -1,0 +1,85 @@
+version: '3.8'
+
+# ============================================================================
+# Bluesky Tracker - Self-Hosted Configuration
+# ============================================================================
+# This is a simplified docker-compose file for easy self-hosting.
+# For full configuration options, see: docker-compose.yml
+#
+# Quick Start:
+#   1. Copy .env.example to .env
+#   2. Edit .env with your Bluesky credentials
+#   3. Run: docker compose -f docker-compose.selfhost.yml up -d
+#
+# Documentation: https://github.com/costantinoai/bluesky-tracker
+# ============================================================================
+
+services:
+  bluesky-tracker:
+    # Using pre-built image from Docker Hub
+    # Available platforms: amd64, arm64, armv7 (Raspberry Pi compatible)
+    image: costantinoai/bluesky-tracker:latest
+
+    container_name: bluesky-tracker
+
+    # Web interface port
+    # Change the first number to use a different port on your host
+    # Format: HOST_PORT:CONTAINER_PORT
+    ports:
+      - "8095:8095"
+
+    # Persistent data storage
+    # All database files are stored here
+    volumes:
+      - ./data:/app/data
+
+    # Environment variables from .env file
+    # Required: BLUESKY_HANDLE and BLUESKY_APP_PASSWORD
+    # Optional: PORT, TZ, DATABASE_PATH
+    env_file:
+      - .env
+
+    # Restart policy
+    # Options: "no", "always", "on-failure", "unless-stopped"
+    restart: unless-stopped
+
+    # Health check
+    # Docker will restart the container if health checks fail
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8095/health"]
+      interval: 30s      # Check every 30 seconds
+      timeout: 10s       # Timeout after 10 seconds
+      retries: 3         # Restart after 3 failed attempts
+      start_period: 40s  # Wait 40s before first check
+
+    # Resource limits (optional but recommended)
+    # Adjust based on your system resources
+    deploy:
+      resources:
+        limits:
+          memory: 256M     # Maximum memory usage
+          cpus: '0.5'      # Maximum CPU usage (50% of 1 core)
+        reservations:
+          memory: 128M     # Minimum guaranteed memory
+
+# ============================================================================
+# Accessing Your Tracker
+# ============================================================================
+# After starting the container, access:
+#
+#   Dashboard:     http://localhost:8095/report
+#   API Stats:     http://localhost:8095/api/stats
+#   Metrics:       http://localhost:8095/metrics
+#   Health Check:  http://localhost:8095/health
+#
+# ============================================================================
+# Common Commands
+# ============================================================================
+# Start:       docker compose -f docker-compose.selfhost.yml up -d
+# Stop:        docker compose -f docker-compose.selfhost.yml stop
+# Restart:     docker compose -f docker-compose.selfhost.yml restart
+# Logs:        docker compose -f docker-compose.selfhost.yml logs -f
+# Update:      docker compose -f docker-compose.selfhost.yml pull && \
+#              docker compose -f docker-compose.selfhost.yml up -d
+# Remove:      docker compose -f docker-compose.selfhost.yml down -v
+# ============================================================================

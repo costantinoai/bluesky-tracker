@@ -2,6 +2,88 @@
 
 Comprehensive analytics dashboard for Bluesky social network activity tracking.
 
+[![Docker Pulls](https://img.shields.io/docker/pulls/costantinoai/bluesky-tracker)](https://hub.docker.com/r/costantinoai/bluesky-tracker)
+[![GitHub Release](https://img.shields.io/github/v/release/costantinoai/bluesky-tracker)](https://github.com/costantinoai/bluesky-tracker/releases)
+[![Tests](https://github.com/costantinoai/bluesky-tracker/actions/workflows/test.yml/badge.svg)](https://github.com/costantinoai/bluesky-tracker/actions/workflows/test.yml)
+[![Docker Build](https://github.com/costantinoai/bluesky-tracker/actions/workflows/docker-build.yml/badge.svg)](https://github.com/costantinoai/bluesky-tracker/actions/workflows/docker-build.yml)
+[![License](https://img.shields.io/github/license/costantinoai/bluesky-tracker)](LICENSE)
+[![Docker Image Size](https://img.shields.io/docker/image-size/costantinoai/bluesky-tracker/latest)](https://hub.docker.com/r/costantinoai/bluesky-tracker)
+[![Platform Support](https://img.shields.io/badge/platform-amd64%20%7C%20arm64%20%7C%20armv7-blue)](https://hub.docker.com/r/costantinoai/bluesky-tracker)
+
+---
+
+## 🚀 Quick Start
+
+### One-Command Installation
+
+```bash
+curl -sSL https://raw.githubusercontent.com/costantinoai/bluesky-tracker/main/setup.sh | bash
+```
+
+**That's it!** The script will:
+- ✅ Check Docker installation
+- ✅ Download configuration files
+- ✅ Guide you through setup
+- ✅ Start the tracker automatically
+
+**Access your dashboard:** http://localhost:8095/report
+
+### Alternative Installation Methods
+
+<details>
+<summary><b>Docker Compose</b></summary>
+
+```bash
+# Download files
+curl -O https://raw.githubusercontent.com/costantinoai/bluesky-tracker/main/docker-compose.selfhost.yml
+mv docker-compose.selfhost.yml docker-compose.yml
+curl -O https://raw.githubusercontent.com/costantinoai/bluesky-tracker/main/.env.example
+
+# Configure
+cp .env.example .env
+nano .env  # Add your Bluesky handle and app password
+
+# Start
+docker compose up -d
+```
+</details>
+
+<details>
+<summary><b>Docker Run</b></summary>
+
+```bash
+docker run -d \
+  --name bluesky-tracker \
+  -p 8095:8095 \
+  -v $(pwd)/data:/app/data \
+  -e BLUESKY_HANDLE=yourname.bsky.social \
+  -e BLUESKY_APP_PASSWORD=your-app-password \
+  --restart unless-stopped \
+  costantinoai/bluesky-tracker:latest
+```
+</details>
+
+<details>
+<summary><b>Portainer</b></summary>
+
+See [portainer-stack.yml](portainer-stack.yml) for a ready-to-use template.
+</details>
+
+**📖 Full installation guide:** [INSTALLATION.md](INSTALLATION.md)
+
+---
+
+## 📚 Documentation
+
+| Guide | Description |
+|-------|-------------|
+| **[Installation Guide](INSTALLATION.md)** | Complete installation instructions for all platforms |
+| **[Troubleshooting](TROUBLESHOOTING.md)** | Common issues and solutions |
+| **[Security Guide](SECURITY.md)** | Security best practices and recommendations |
+| **[Examples](examples/)** | Integration examples (Grafana, Homepage, Traefik, etc.) |
+
+---
+
 ## 🔐 Authentication Notice
 
 **IMPORTANT: App password is OPTIONAL and NOT REQUIRED for most features!**

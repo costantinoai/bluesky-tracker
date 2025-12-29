@@ -1,0 +1,45 @@
+# Systemd service file for Bluesky Tracker
+# Location: /etc/systemd/system/bluesky-tracker.service
+
+[Unit]
+Description=Bluesky Tracker Docker Container
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/USER/bluesky-tracker
+ExecStartPre=-/usr/bin/docker pull costantinoai/bluesky-tracker:latest
+ExecStart=/usr/bin/docker-compose up -d
+ExecStop=/usr/bin/docker-compose down
+ExecReload=/usr/bin/docker-compose pull
+ExecReload=/usr/bin/docker-compose up -d
+User=USER
+Group=USER
+
+[Install]
+WantedBy=multi-user.target
+
+# Installation:
+# 1. Copy this file to /etc/systemd/system/bluesky-tracker.service
+# 2. Replace USER with your username (twice)
+# 3. Update WorkingDirectory path
+# 4. Enable and start:
+#    sudo systemctl daemon-reload
+#    sudo systemctl enable bluesky-tracker.service
+#    sudo systemctl start bluesky-tracker.service
+
+# Usage:
+# Start:   sudo systemctl start bluesky-tracker
+# Stop:    sudo systemctl stop bluesky-tracker
+# Restart: sudo systemctl restart bluesky-tracker
+# Status:  sudo systemctl status bluesky-tracker
+# Logs:    sudo journalctl -u bluesky-tracker -f
+# Update:  sudo systemctl reload bluesky-tracker
+
+# Auto-start on boot:
+# sudo systemctl enable bluesky-tracker
+
+# Disable auto-start:
+# sudo systemctl disable bluesky-tracker

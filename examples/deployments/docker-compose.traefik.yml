@@ -1,0 +1,82 @@
+version: '3.8'
+
+# Bluesky Tracker with Traefik Reverse Proxy
+# Provides automatic HTTPS with Let's Encrypt
+
+services:
+  bluesky-tracker:
+    image: costantinoai/bluesky-tracker:latest
+    container_name: bluesky-tracker
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    networks:
+      - traefik
+    labels:
+      # Enable Traefik
+      - "traefik.enable=true"
+
+      # HTTP Router
+      - "traefik.http.routers.bluesky.rule=Host(`bluesky.yourdomain.com`)"
+      - "traefik.http.routers.bluesky.entrypoints=websecure"
+      - "traefik.http.routers.bluesky.tls=true"
+      - "traefik.http.routers.bluesky.tls.certresolver=letsencrypt"
+
+      # Service
+      - "traefik.http.services.bluesky.loadbalancer.server.port=8095"
+
+      # Middleware (optional)
+      - "traefik.http.routers.bluesky.middlewares=bluesky-ratelimit"
+      - "traefik.http.middlewares.bluesky-ratelimit.ratelimit.average=10"
+      - "traefik.http.middlewares.bluesky-ratelimit.ratelimit.burst=20"
+
+      # HTTP to HTTPS redirect
+      - "traefik.http.routers.bluesky-http.rule=Host(`bluesky.yourdomain.com`)"
+      - "traefik.http.routers.bluesky-http.entrypoints=web"
+      - "traefik.http.routers.bluesky-http.middlewares=https-redirect"
+      - "traefik.http.middlewares.https-redirect.redirectscheme.scheme=https"
+
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.email=your-email@example.com"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/acme.json:/acme.json
+    restart: unless-stopped
+    networks:
+      - traefik
+    labels:
+      # Dashboard
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.yourdomain.com`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls=true"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=admin:$$apr1$$password$$hash"
+
+networks:
+  traefik:
+    external: true
+
+# Setup:
+# 1. Create network: docker network create traefik
+# 2. Create acme.json: mkdir traefik && touch traefik/acme.json && chmod 600 traefik/acme.json
+# 3. Update your-email@example.com
+# 4. Update bluesky.yourdomain.com
+# 5. Point DNS A record to your server IP
+# 6. docker-compose up -d
