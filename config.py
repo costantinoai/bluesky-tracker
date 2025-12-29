@@ -1,22 +1,41 @@
 import os
+import sys
 
 class Config:
-    # Bluesky account to track (public profile)
+    # Bluesky account to track
     # Note: handle should NOT include @ symbol
     # REQUIRED: Set this in your .env file
-    BLUESKY_HANDLE = os.getenv('BLUESKY_HANDLE', 'your-handle.bsky.social')
-    
-    # Optional: App Password for authenticated access (recommended)
+    BLUESKY_HANDLE = os.getenv('BLUESKY_HANDLE', '')
+
+    # REQUIRED: App Password for authenticated access
     # Generate at: https://bsky.app/settings/app-passwords
     # More secure than main password, can be revoked anytime
     BLUESKY_APP_PASSWORD = os.getenv('BLUESKY_APP_PASSWORD', '').strip()
-    
-    # Determine if we have authentication
-    HAS_AUTH = bool(BLUESKY_APP_PASSWORD)
+
+    # Validate required configuration
+    @classmethod
+    def validate(cls):
+        """Validate required configuration on startup"""
+        errors = []
+
+        if not cls.BLUESKY_HANDLE or cls.BLUESKY_HANDLE == 'your-handle.bsky.social':
+            errors.append("BLUESKY_HANDLE is required. Set it in your .env file.")
+
+        if not cls.BLUESKY_APP_PASSWORD:
+            errors.append("BLUESKY_APP_PASSWORD is required. Generate one at https://bsky.app/settings/app-passwords")
+
+        if errors:
+            print("\n" + "="*70, file=sys.stderr)
+            print("CONFIGURATION ERROR", file=sys.stderr)
+            print("="*70, file=sys.stderr)
+            for error in errors:
+                print(f"  ✗ {error}", file=sys.stderr)
+            print("\nPlease update your .env file with the required values.", file=sys.stderr)
+            print("="*70 + "\n", file=sys.stderr)
+            sys.exit(1)
 
     # API settings
-    BLUESKY_API_URL = 'https://public.api.bsky.app'  # Public API with caching
-    BLUESKY_AUTH_API_URL = 'https://bsky.social'      # Authenticated API
+    BLUESKY_API_URL = 'https://bsky.social'  # Always use authenticated API
     REQUEST_DELAY = 0.7  # Seconds between API calls
     MAX_RETRIES = 3
 
@@ -32,13 +51,3 @@ class Config:
 
     # Display settings
     WIDGET_DAYS = 30  # Show last 30 days in widget
-    
-    @classmethod
-    def is_authenticated(cls):
-        """Check if authentication is configured"""
-        return cls.HAS_AUTH
-    
-    @classmethod
-    def get_api_url(cls):
-        """Get appropriate API URL based on auth status"""
-        return cls.BLUESKY_AUTH_API_URL if cls.HAS_AUTH else cls.BLUESKY_API_URL

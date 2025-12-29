@@ -37,6 +37,9 @@ class Database:
                     did TEXT NOT NULL,
                     handle TEXT NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    display_name TEXT,
+                    avatar_url TEXT,
+                    bio TEXT,
                     UNIQUE(collection_date, did)
                 )
             ''')
@@ -49,6 +52,9 @@ class Database:
                     did TEXT NOT NULL,
                     handle TEXT NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    display_name TEXT,
+                    avatar_url TEXT,
+                    bio TEXT,
                     UNIQUE(collection_date, did)
                 )
             ''')
@@ -109,6 +115,36 @@ class Database:
                 )
             ''')
 
+            # Muted accounts snapshot (requires authentication)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS muted_snapshot (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    collection_date DATE NOT NULL,
+                    did TEXT NOT NULL,
+                    handle TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    display_name TEXT,
+                    avatar_url TEXT,
+                    bio TEXT,
+                    UNIQUE(collection_date, did)
+                )
+            ''')
+
+            # Blocked accounts snapshot (requires authentication)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS blocked_snapshot (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    collection_date DATE NOT NULL,
+                    did TEXT NOT NULL,
+                    handle TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    display_name TEXT,
+                    avatar_url TEXT,
+                    bio TEXT,
+                    UNIQUE(collection_date, did)
+                )
+            ''')
+
             # Post engagement metrics
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS post_engagement (
@@ -131,6 +167,45 @@ class Database:
                 )
             ''')
 
+            # Daily engagement metrics aggregates
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS daily_engagement_metrics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    metric_date DATE NOT NULL UNIQUE,
+                    total_posts INTEGER DEFAULT 0,
+                    posts_with_engagement INTEGER DEFAULT 0,
+                    total_likes INTEGER DEFAULT 0,
+                    total_reposts INTEGER DEFAULT 0,
+                    total_replies INTEGER DEFAULT 0,
+                    total_quotes INTEGER DEFAULT 0,
+                    total_bookmarks INTEGER DEFAULT 0,
+                    total_indirect_likes INTEGER DEFAULT 0,
+                    total_indirect_reposts INTEGER DEFAULT 0,
+                    total_indirect_replies INTEGER DEFAULT 0,
+                    total_indirect_bookmarks INTEGER DEFAULT 0,
+                    avg_engagement_per_post REAL DEFAULT 0,
+                    engagement_rate REAL DEFAULT 0,
+                    best_post_uri TEXT,
+                    best_post_engagement INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            # Follower velocity tracking
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS follower_velocity (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    metric_date DATE NOT NULL UNIQUE,
+                    new_followers INTEGER DEFAULT 0,
+                    lost_followers INTEGER DEFAULT 0,
+                    new_following INTEGER DEFAULT 0,
+                    lost_following INTEGER DEFAULT 0,
+                    net_follower_change INTEGER DEFAULT 0,
+                    net_following_change INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
             # Indexes
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_followers_date ON followers_snapshot(collection_date)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_following_date ON following_snapshot(collection_date)')
@@ -138,8 +213,11 @@ class Database:
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_changes_type ON follower_changes(change_type)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_metrics_date ON daily_metrics(metric_date)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_daily_counts_date ON daily_counts(collection_date)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_muted_date ON muted_snapshot(collection_date)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_blocked_date ON blocked_snapshot(collection_date)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_post_engagement_date ON post_engagement(collection_date)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_post_engagement_uri ON post_engagement(post_uri)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_engagement_metrics_date ON daily_engagement_metrics(metric_date)')
 
             logger.info("Database initialized successfully")
 
@@ -673,14 +751,9 @@ class Database:
             } for row in cursor.fetchall()]
     
     def get_muted_accounts_with_profile(self):
-        """Get muted accounts with full profile data (requires authentication)"""
+        """Get muted accounts with full profile data"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-
-            # Check if table exists (only created when authenticated)
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='muted_snapshot'")
-            if not cursor.fetchone():
-                return []
 
             cursor.execute('SELECT MAX(collection_date) FROM muted_snapshot')
             latest_date = cursor.fetchone()[0]
@@ -704,14 +777,9 @@ class Database:
             } for row in cursor.fetchall()]
     
     def get_blocked_accounts_with_profile(self):
-        """Get blocked accounts with full profile data (requires authentication)"""
+        """Get blocked accounts with full profile data"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-
-            # Check if table exists (only created when authenticated)
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='blocked_snapshot'")
-            if not cursor.fetchone():
-                return []
 
             cursor.execute('SELECT MAX(collection_date) FROM blocked_snapshot')
             latest_date = cursor.fetchone()[0]

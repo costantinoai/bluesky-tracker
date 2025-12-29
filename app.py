@@ -11,6 +11,9 @@ from database import Database
 from templates import get_report_html
 from collector import BlueskyCollector
 
+# Validate configuration before starting
+Config.validate()
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -152,9 +155,13 @@ def report():
         non_mutual = db.get_non_mutual_following()
         followers_only = db.get_followers_only()
         hidden_analytics = db.get_hidden_follower_analytics(days=30)
+        if hidden_analytics is None:
+            hidden_analytics = {}
         change_history = db.get_follower_change_details(days=30)
         mutual_follows = db.get_mutual_follows()
         advanced_metrics = db.get_advanced_metrics()
+        if advanced_metrics is None:
+            advanced_metrics = {}
         top_interactors = db.get_top_interactors(days=30, limit=20)
         muted_accounts = db.get_muted_accounts_with_profile()
         blocked_accounts = db.get_blocked_accounts_with_profile()
@@ -188,11 +195,6 @@ def report():
                         'indirect_replies': row[10] or 0,
                         'indirect_bookmarks': row[11] or 0
                     })
-        
-        # Check actual authentication status by attempting to authenticate
-        # This will return True if we have a password AND it works, False otherwise
-        collector_test = BlueskyCollector()
-        auth_status = collector_test.authenticate()
 
         # Prepare data for template
         data = {
@@ -208,7 +210,6 @@ def report():
             'top_posts': top_posts,
             'advanced_metrics': advanced_metrics,
             'top_interactors': top_interactors,
-            'auth_status': auth_status,
             'bluesky_handle': Config.BLUESKY_HANDLE
         }
         
@@ -364,15 +365,21 @@ def api_net_growth():
         with db.get_connection() as conn:
             cursor = conn.cursor()
 
+            # Calculate net changes from follower_changes table
             cursor.execute('''
-                SELECT metric_date, net_follower_change, net_following_change
-                FROM follower_velocity
-                ORDER BY metric_date DESC
-                LIMIT ?
+                SELECT
+                    change_date,
+                    SUM(CASE WHEN change_type = 'new_follower' THEN 1 ELSE 0 END) -
+                    SUM(CASE WHEN change_type = 'unfollower' THEN 1 ELSE 0 END) as net_followers,
+                    SUM(CASE WHEN change_type = 'new_following' THEN 1 ELSE 0 END) -
+                    SUM(CASE WHEN change_type = 'unfollowing' THEN 1 ELSE 0 END) as net_following
+                FROM follower_changes
+                WHERE change_date >= date('now', '-' || ? || ' days')
+                GROUP BY change_date
+                ORDER BY change_date ASC
             ''', (days,))
 
             rows = cursor.fetchall()
-            rows = list(reversed(rows))
 
             data = {
                 'dates': [row[0] for row in rows],
@@ -421,11 +428,10 @@ def api_engagement_timeline():
                     WHERE pe.created_at IS NOT NULL
                 ) subquery
                 GROUP BY engagement_date
-                ORDER BY engagement_date DESC
+                ORDER BY engagement_date ASC
                 LIMIT ?
             ''', (days,))
             rows = cursor.fetchall()
-            rows = list(reversed(rows))
 
             data = {
                 'dates': [row[0] for row in rows],
@@ -505,16 +511,16 @@ def api_engagement_breakdown():
         with db.get_connection() as conn:
             cursor = conn.cursor()
 
-            # Get totals for the time period
+            # Get totals for the time period - aggregate directly from post_engagement
             cursor.execute('''
                 SELECT
-                    SUM(total_likes) as likes,
-                    SUM(total_reposts) as reposts,
-                    SUM(total_replies) as replies,
-                    SUM(total_quotes) as quotes,
-                    SUM(total_bookmarks) as bookmarks
-                FROM daily_engagement_metrics
-                WHERE metric_date >= date('now', '-' || ? || ' days')
+                    SUM(like_count + indirect_likes) as likes,
+                    SUM(repost_count + indirect_reposts) as reposts,
+                    SUM(reply_count + indirect_replies) as replies,
+                    SUM(quote_count) as quotes,
+                    SUM(bookmark_count + indirect_bookmarks) as bookmarks
+                FROM post_engagement
+                WHERE collection_date >= date('now', '-' || ? || ' days')
             ''', (days,))
 
             row = cursor.fetchone()
@@ -559,25 +565,28 @@ def api_stats_summary():
 
             metrics_row = cursor.fetchone()
 
-            # Get engagement totals
+            # Get engagement totals - aggregate directly from post_engagement
             cursor.execute('''
                 SELECT
-                    SUM(total_likes + total_reposts + total_replies + total_quotes + total_bookmarks) as total_engagement,
-                    AVG(avg_engagement_per_post) as avg_engagement_per_post,
-                    SUM(total_posts) as total_posts
-                FROM daily_engagement_metrics
-                WHERE metric_date >= date('now', '-' || ? || ' days')
+                    COUNT(DISTINCT post_uri) as total_posts,
+                    SUM(like_count + repost_count + reply_count + quote_count + bookmark_count) as total_engagement,
+                    SUM(indirect_likes + indirect_reposts + indirect_replies + indirect_bookmarks) as total_indirect
+                FROM post_engagement
+                WHERE collection_date >= date('now', '-' || ? || ' days')
             ''', (days,))
 
             engagement_row = cursor.fetchone()
+            total_posts = engagement_row[0] or 0
+            total_engagement = (engagement_row[1] or 0) + (engagement_row[2] or 0)
+            avg_engagement = round(total_engagement / total_posts, 1) if total_posts > 0 else 0
 
             data = {
                 'daysTracked': metrics_row[0] or 0,
                 'followerChange': metrics_row[1] or 0,
                 'avgFollowers': int(metrics_row[2] or 0),
-                'totalEngagement': engagement_row[0] or 0,
-                'avgEngagementPerPost': round(engagement_row[1] or 0, 1),
-                'totalPosts': engagement_row[2] or 0
+                'totalEngagement': total_engagement,
+                'avgEngagementPerPost': avg_engagement,
+                'totalPosts': total_posts
             }
 
         api_requests.labels(endpoint='/api/graphs/stats-summary', status='success').inc()

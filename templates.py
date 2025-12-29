@@ -16,7 +16,6 @@ def get_report_html(data):
     change_history = data.get('change_history', [])
     top_posts = data.get('top_posts', [])
     advanced_metrics = data.get('advanced_metrics', {})
-    auth_status = data.get('auth_status', False)
     top_interactors = data.get('top_interactors', [])
     last_updated = data.get('last_updated', 'Never')
     bluesky_handle = data.get('bluesky_handle', 'your-handle.bsky.social')
@@ -60,9 +59,6 @@ def get_report_html(data):
         </div>'''
 
     # HTML with embedded CSS
-    auth_class = 'authenticated' if auth_status else 'public'
-    auth_text = 'Authenticated ✓' if auth_status else 'Public Data'
-
     html = f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -107,9 +103,8 @@ def get_report_html(data):
         .header-text h1 {{ font-size: 28px; font-weight: 700; color: var(--md-on-surface); margin-bottom: 4px; }}
         .header-text p {{ color: var(--md-on-surface-variant); font-size: 14px; }}
         .auth-badge {{ display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px;
-                       border-radius: 28px; font-size: 13px; font-weight: 500; }}
-        .auth-badge.authenticated {{ background: var(--md-success-container); color: var(--md-success); }}
-        .auth-badge.public {{ background: var(--md-secondary-container); color: var(--md-secondary); }}
+                       border-radius: 28px; font-size: 13px; font-weight: 500;
+                       background: var(--md-success-container); color: var(--md-success); }}
         .stats-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }}
         .stat-card {{ background: white; border-radius: 16px; padding: 24px; box-shadow: var(--md-elevation-1);
                       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; cursor: pointer; }}
@@ -212,8 +207,8 @@ def get_report_html(data):
                         <span class="material-icons" style="font-size: 18px;">sync</span>
                         Refresh Data
                     </button>
-                    <div class="auth-badge {auth_class}">
-                        <span>{auth_text}</span>
+                    <div class="auth-badge">
+                        <span>Authenticated ✓</span>
                     </div>
                 </div>
             </div>
@@ -266,9 +261,12 @@ def get_report_html(data):
                 <p id="analytics-subtitle">Tracking trends over time</p>
             </div>
         </div>
+        <svg class="section-chevron" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+        </svg>
     </div>
 
-    <div class="section-content" style="display: block;">
+    <div class="section-content expanded" style="display: block;">
         <div class="section-body">
             <!-- Time Range Selector -->
             <div style="display: flex; justify-content: center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;">
@@ -323,16 +321,17 @@ def get_report_html(data):
                 <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 350px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                         <h4 style="margin: 0; color: #1C1B1F; font-size: 16px; font-weight: 600;">Engagement Timeline</h4>
-                        <div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <span style="font-size: 12px; color: #666;">View:</span>
                             <button id="engagementViewToggle" onclick="toggleEngagementView()" style="
-                                padding: 6px 16px;
-                                border: none;
-                                border-radius: 20px;
+                                padding: 6px 12px;
                                 background: #1976D2;
                                 color: white;
-                                font-size: 13px;
-                                font-weight: 500;
+                                border: none;
+                                border-radius: 6px;
                                 cursor: pointer;
+                                font-size: 12px;
+                                font-weight: 500;
                                 transition: background 0.2s;
                             ">Daily</button>
                         </div>
@@ -390,8 +389,8 @@ def get_report_html(data):
 
     """
 
-        # Top Posts Section (if authenticated)
-    if top_posts and auth_status:
+        # Top Posts Section
+    if top_posts:
         html += f"""
         <div class="section-card">
             <div class="section-header" onclick="toggleSection(this)">
@@ -620,7 +619,7 @@ def get_report_html(data):
 """
 
     # Top Interactors Section
-    if top_interactors and auth_status:
+    if top_interactors:
         html += f"""
         <div class="section-card">
             <div class="section-header" onclick="toggleSection(this)">
@@ -983,10 +982,13 @@ function updateEngagementChart() {
             scales: {
                 y: {
                     beginAtZero: true,
-                    stacked: engagementDataStore.currentView === 'cumulative'
+                    stacked: false,
+                    ticks: {
+                        precision: 0
+                    }
                 },
                 x: {
-                    stacked: engagementDataStore.currentView === 'cumulative'
+                    stacked: false
                 }
             },
             interaction: {
@@ -1355,14 +1357,14 @@ async function loadEngagementTimelineChart(days) {
                 },
                 scales: {
                     y: {
-                        stacked: true,
+                        stacked: false,
                         beginAtZero: true,
                         ticks: {
                             precision: 0
                         }
                     },
                     x: {
-                        stacked: true
+                        stacked: false
                     }
                 }
             }

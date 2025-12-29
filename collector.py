@@ -14,36 +14,33 @@ class BlueskyCollector:
         self.access_token = None
         
     def authenticate(self):
-        """Authenticate with Bluesky using app password (if provided)"""
-        if not Config.HAS_AUTH:
-            logger.info("No app password configured - using public API")
-            return False
-        
+        """Authenticate with Bluesky using app password"""
         try:
             # SECURITY: Never log the password
             logger.info("Authenticating with app password...")
-            
+
             response = requests.post(
-                f"{Config.BLUESKY_AUTH_API_URL}/xrpc/com.atproto.server.createSession",
+                f"{Config.BLUESKY_API_URL}/xrpc/com.atproto.server.createSession",
                 json={
                     "identifier": Config.BLUESKY_HANDLE,
-                    "password": Config.BLUESKY_APP_PASSWORD  # App password, not main password
+                    "password": Config.BLUESKY_APP_PASSWORD
                 },
                 timeout=30
             )
             response.raise_for_status()
             data = response.json()
-            
+
             self.access_token = data.get('accessJwt')
             self.session = data
             logger.info(f"✓ Authenticated successfully as {data.get('handle')}")
             return True
-            
+
         except Exception as e:
             # SECURITY: Don't log password in error messages
-            logger.error(f"Authentication failed: {str(e).replace(Config.BLUESKY_APP_PASSWORD, '***')}")
-            logger.warning("Falling back to public API")
-            return False
+            error_msg = str(e).replace(Config.BLUESKY_APP_PASSWORD, '***')
+            logger.error(f"❌ Authentication failed: {error_msg}")
+            logger.error("Collection cannot proceed without authentication")
+            raise Exception(f"Authentication failed: {error_msg}")
 
     def get_auth_headers(self):
         """Get authentication headers if available"""
@@ -52,15 +49,9 @@ class BlueskyCollector:
         return {}
 
     def fetch_all_followers(self):
-        """Fetch all followers (authenticated for full access, public otherwise)"""
+        """Fetch all followers"""
         followers = []
         cursor = None
-        
-        # Choose API endpoint based on auth status
-        if Config.HAS_AUTH and self.access_token:
-            api_url = f"{Config.BLUESKY_AUTH_API_URL}/xrpc/app.bsky.graph.getFollowers"
-        else:
-            api_url = f"{Config.BLUESKY_API_URL}/xrpc/app.bsky.graph.getFollowers"
 
         while True:
             try:
@@ -72,7 +63,7 @@ class BlueskyCollector:
                     params['cursor'] = cursor
 
                 response = requests.get(
-                    api_url,
+                    f"{Config.BLUESKY_API_URL}/xrpc/app.bsky.graph.getFollowers",
                     params=params,
                     headers=self.get_auth_headers(),
                     timeout=30
@@ -102,15 +93,9 @@ class BlueskyCollector:
         return followers
 
     def fetch_all_following(self):
-        """Fetch all following (authenticated for full access, public otherwise)"""
+        """Fetch all following"""
         following = []
         cursor = None
-        
-        # Choose API endpoint based on auth status
-        if Config.HAS_AUTH and self.access_token:
-            api_url = f"{Config.BLUESKY_AUTH_API_URL}/xrpc/app.bsky.graph.getFollows"
-        else:
-            api_url = f"{Config.BLUESKY_API_URL}/xrpc/app.bsky.graph.getFollows"
 
         while True:
             try:
@@ -122,7 +107,7 @@ class BlueskyCollector:
                     params['cursor'] = cursor
 
                 response = requests.get(
-                    api_url,
+                    f"{Config.BLUESKY_API_URL}/xrpc/app.bsky.graph.getFollows",
                     params=params,
                     headers=self.get_auth_headers(),
                     timeout=30
@@ -152,15 +137,11 @@ class BlueskyCollector:
         return following
 
     def fetch_engagement_data(self):
-        """Fetch post engagement data (requires authentication)"""
-        if not self.access_token:
-            logger.info("Skipping engagement data - authentication required")
-            return []
-        
+        """Fetch post engagement data"""
         try:
             # Get user's posts with engagement metrics
             response = requests.get(
-                f"{Config.BLUESKY_AUTH_API_URL}/xrpc/app.bsky.feed.getAuthorFeed",
+                f"{Config.BLUESKY_API_URL}/xrpc/app.bsky.feed.getAuthorFeed",
                 params={'actor': Config.BLUESKY_HANDLE, 'limit': 50, 'filter': 'posts_with_replies'},
                 headers=self.get_auth_headers(),
                 timeout=30
@@ -215,13 +196,10 @@ class BlueskyCollector:
         Fetch indirect engagement for a post.
         Indirect engagement = engagement on posts that quoted this post.
         """
-        if not self.access_token:
-            return {'likes': 0, 'reposts': 0, 'replies': 0, 'bookmarks': 0}
-
         try:
             # Use getQuotes endpoint to find posts that quoted this post
             response = requests.get(
-                f"{Config.BLUESKY_AUTH_API_URL}/xrpc/app.bsky.feed.getQuotes",
+                f"{Config.BLUESKY_API_URL}/xrpc/app.bsky.feed.getQuotes",
                 params={'uri': post_uri, 'limit': 50},
                 headers=self.get_auth_headers(),
                 timeout=30
@@ -259,14 +237,8 @@ class BlueskyCollector:
     def fetch_profile_counts(self):
         """Fetch profile counts (includes ALL followers/following, even hidden ones)"""
         try:
-            # Choose API endpoint based on auth status
-            if Config.HAS_AUTH and self.access_token:
-                api_url = f"{Config.BLUESKY_AUTH_API_URL}/xrpc/app.bsky.actor.getProfile"
-            else:
-                api_url = f"{Config.BLUESKY_API_URL}/xrpc/app.bsky.actor.getProfile"
-            
             response = requests.get(
-                api_url,
+                f"{Config.BLUESKY_API_URL}/xrpc/app.bsky.actor.getProfile",
                 params={'actor': Config.BLUESKY_HANDLE},
                 headers=self.get_auth_headers(),
                 timeout=30
@@ -288,11 +260,7 @@ class BlueskyCollector:
             return {'followers': 0, 'following': 0}
 
     def fetch_muted_accounts(self):
-        """Fetch list of accounts we muted (requires authentication)"""
-        if not self.access_token:
-            logger.info("Skipping mute list - authentication required")
-            return []
-        
+        """Fetch list of accounts we muted"""
         try:
             muted = []
             cursor = None
@@ -303,7 +271,7 @@ class BlueskyCollector:
                     params['cursor'] = cursor
                 
                 response = requests.get(
-                    f"{Config.BLUESKY_AUTH_API_URL}/xrpc/app.bsky.graph.getMutes",
+                    f"{Config.BLUESKY_API_URL}/xrpc/app.bsky.graph.getMutes",
                     params=params,
                     headers=self.get_auth_headers(),
                     timeout=30
@@ -334,11 +302,7 @@ class BlueskyCollector:
             return []
 
     def fetch_blocked_accounts(self):
-        """Fetch list of accounts we blocked (requires authentication)"""
-        if not self.access_token:
-            logger.info("Skipping block list - authentication required")
-            return []
-        
+        """Fetch list of accounts we blocked"""
         try:
             blocked = []
             cursor = None
@@ -349,7 +313,7 @@ class BlueskyCollector:
                     params['cursor'] = cursor
                 
                 response = requests.get(
-                    f"{Config.BLUESKY_AUTH_API_URL}/xrpc/app.bsky.graph.getBlocks",
+                    f"{Config.BLUESKY_API_URL}/xrpc/app.bsky.graph.getBlocks",
                     params=params,
                     headers=self.get_auth_headers(),
                     timeout=30
@@ -383,14 +347,10 @@ class BlueskyCollector:
 
     def fetch_interactions(self):
         """Fetch interaction data from notifications API"""
-        if not self.access_token:
-            logger.info("Skipping interactions - authentication required")
-            return []
-        
         try:
             # Fetch notifications (last 100)
             response = requests.get(
-                f"{Config.BLUESKY_AUTH_API_URL}/xrpc/app.bsky.notification.listNotifications",
+                f"{Config.BLUESKY_API_URL}/xrpc/app.bsky.notification.listNotifications",
                 params={'limit': 100},
                 headers=self.get_auth_headers(),
                 timeout=30
@@ -475,14 +435,11 @@ class BlueskyCollector:
         collection_date = date.today()
 
         try:
-            # Try authentication if configured
-            auth_success = False
-            if Config.HAS_AUTH:
-                auth_success = self.authenticate()
-            
+            # Authenticate (required)
+            self.authenticate()
+
             logger.info(f"Starting collection for {collection_date}")
             logger.info(f"Tracking: {Config.BLUESKY_HANDLE}")
-            logger.info(f"Mode: {'Authenticated' if auth_success else 'Public API'}")
 
             # Fetch profile counts (includes ALL followers, even hidden)
             profile_counts = self.fetch_profile_counts()
@@ -499,15 +456,10 @@ class BlueskyCollector:
             hidden_following = profile_counts['following'] - len(following)
             logger.info(f"Hidden: {hidden_followers} followers, {hidden_following} following")
 
-            # Fetch mute/block lists if authenticated
-            muted = []
-            blocked = []
-            if auth_success:
-                muted = self.fetch_muted_accounts()
-                blocked = self.fetch_blocked_accounts()
-                engagement_data = self.fetch_engagement_data()
-            else:
-                engagement_data = []
+            # Fetch authenticated data
+            muted = self.fetch_muted_accounts()
+            blocked = self.fetch_blocked_accounts()
+            engagement_data = self.fetch_engagement_data()
 
             # Save snapshot with profile counts
             self.db.save_snapshot(collection_date, followers, following, 
