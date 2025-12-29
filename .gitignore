@@ -1,0 +1,39 @@
+# Environment variables (contains sensitive credentials)
+.env
+
+# API folder (if exists)
+api/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Database files
+data/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Backup files
+*.backup
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.dockerignore
+
+# Logs
+*.log

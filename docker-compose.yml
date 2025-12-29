@@ -1,0 +1,53 @@
+services:
+  bluesky-tracker:
+    build: .
+    container_name: bluesky-tracker
+    hostname: bluesky-tracker
+    restart: unless-stopped
+
+    # Security hardening
+    security_opt:
+      - no-new-privileges:true
+
+    ports:
+      - "8095:8095"
+
+    volumes:
+      - ./data:/app/data
+
+    env_file:
+      - .env
+
+    environment:
+      - PORT=8095
+      - DATABASE_PATH=/app/data/bluesky.db
+      - TZ=Europe/Brussels
+
+    networks:
+      - homepage_default
+      - monitoring_monitoring
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8095/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    # Resource limits
+    mem_limit: 256m
+    mem_reservation: 128m
+    pids_limit: 50
+
+    # Logging
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  homepage_default:
+    external: true
+  monitoring_monitoring:
+    external: true
