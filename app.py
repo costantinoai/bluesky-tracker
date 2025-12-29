@@ -189,9 +189,11 @@ def report():
                         'indirect_bookmarks': row[11] or 0
                     })
         
-        # Check if authenticated (based on whether we have engagement data)
-        auth_status = len(top_posts) > 0
-        
+        # Check actual authentication status by attempting to authenticate
+        # This will return True if we have a password AND it works, False otherwise
+        collector_test = BlueskyCollector()
+        auth_status = collector_test.authenticate()
+
         # Prepare data for template
         data = {
             'last_updated': last_updated,
