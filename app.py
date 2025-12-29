@@ -396,10 +396,16 @@ def api_engagement_timeline():
             cursor = conn.cursor()
 
             cursor.execute('''
-                SELECT metric_date, total_likes, total_reposts, total_replies,
-                       total_quotes, total_bookmarks
-                FROM daily_engagement_metrics
-                ORDER BY metric_date DESC
+                SELECT DATE(created_at) as post_date,
+                       SUM(like_count + COALESCE(indirect_likes, 0)) as total_likes,
+                       SUM(repost_count + COALESCE(indirect_reposts, 0)) as total_reposts,
+                       SUM(reply_count + COALESCE(indirect_replies, 0)) as total_replies,
+                       SUM(quote_count) as total_quotes,
+                       SUM(bookmark_count + COALESCE(indirect_bookmarks, 0)) as total_bookmarks
+                FROM post_engagement
+                WHERE created_at IS NOT NULL
+                GROUP BY DATE(created_at)
+                ORDER BY DATE(created_at) DESC
                 LIMIT ?
             ''', (days,))
 
@@ -415,8 +421,25 @@ def api_engagement_timeline():
                 'bookmarks': [row[5] or 0 for row in rows]
             }
 
+        # Convert to cumulative sums
+        cumulative_data = {
+            'dates': data['dates'],
+            'likes': [],
+            'reposts': [],
+            'replies': [],
+            'quotes': [],
+            'bookmarks': []
+        }
+
+        for i in range(len(data['dates'])):
+            cumulative_data['likes'].append(sum(data['likes'][:i+1]))
+            cumulative_data['reposts'].append(sum(data['reposts'][:i+1]))
+            cumulative_data['replies'].append(sum(data['replies'][:i+1]))
+            cumulative_data['quotes'].append(sum(data['quotes'][:i+1]))
+            cumulative_data['bookmarks'].append(sum(data['bookmarks'][:i+1]))
+
         api_requests.labels(endpoint='/api/graphs/engagement-timeline', status='success').inc()
-        return jsonify(data)
+        return jsonify(cumulative_data)
 
     except Exception as e:
         logger.error(f"/api/graphs/engagement-timeline error: {e}")
@@ -433,10 +456,11 @@ def api_posting_frequency():
             cursor = conn.cursor()
 
             cursor.execute('''
-                SELECT collection_date, COUNT(*) as post_count
+                SELECT DATE(created_at) as post_date, COUNT(*) as post_count
                 FROM post_engagement
-                GROUP BY collection_date
-                ORDER BY collection_date DESC
+                WHERE created_at IS NOT NULL
+                GROUP BY DATE(created_at)
+                ORDER BY post_date DESC
                 LIMIT ?
             ''', (days,))
 

@@ -304,33 +304,43 @@ def get_report_html(data):
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 24px;">
 
                 <!-- Follower Growth Chart -->
-                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 350px;">
                     <h4 style="margin: 0 0 16px 0; color: #1C1B1F; font-size: 16px; font-weight: 600;">Network Growth</h4>
-                    <canvas id="followerGrowthChart" style="width: 100%; height: 300px; display: block;"></canvas>
+                    <div style="position: relative; height: 300px; width: 100%;">
+                        <canvas id="followerGrowthChart"></canvas>
+                    </div>
                 </div>
 
                 <!-- Net Growth Chart -->
-                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 350px;">
                     <h4 style="margin: 0 0 16px 0; color: #1C1B1F; font-size: 16px; font-weight: 600;">Daily Net Change</h4>
-                    <canvas id="netGrowthChart" style="width: 100%; height: 300px; display: block;"></canvas>
+                    <div style="position: relative; height: 300px; width: 100%;">
+                        <canvas id="netGrowthChart"></canvas>
+                    </div>
                 </div>
 
                 <!-- Engagement Timeline Chart -->
-                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 350px;">
                     <h4 style="margin: 0 0 16px 0; color: #1C1B1F; font-size: 16px; font-weight: 600;">Engagement Timeline</h4>
-                    <canvas id="engagementTimelineChart" style="width: 100%; height: 300px; display: block;"></canvas>
+                    <div style="position: relative; height: 300px; width: 100%;">
+                        <canvas id="engagementTimelineChart"></canvas>
+                    </div>
                 </div>
 
                 <!-- Posting Frequency Chart -->
-                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 350px;">
                     <h4 style="margin: 0 0 16px 0; color: #1C1B1F; font-size: 16px; font-weight: 600;">Posting Activity</h4>
-                    <canvas id="postingFrequencyChart" style="width: 100%; height: 300px; display: block;"></canvas>
+                    <div style="position: relative; height: 300px; width: 100%;">
+                        <canvas id="postingFrequencyChart"></canvas>
+                    </div>
                 </div>
 
                 <!-- Engagement Breakdown Chart -->
-                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 350px;">
                     <h4 style="margin: 0 0 16px 0; color: #1C1B1F; font-size: 16px; font-weight: 600;">Engagement Distribution</h4>
-                    <canvas id="engagementBreakdownChart" style="width: 100%; height: 300px; display: block;"></canvas>
+                    <div style="position: relative; height: 300px; width: 100%;">
+                        <canvas id="engagementBreakdownChart"></canvas>
+                    </div>
                 </div>
 
             </div>
@@ -1003,8 +1013,8 @@ async function loadFollowerGrowthChart(days) {
                         borderWidth: 3,
                         fill: true,
                         tension: 0.4,
-                        pointRadius: 6,  // Make points visible
-                        pointHoverRadius: 8
+                        pointRadius: 15,  // Make points visible
+                        pointHoverRadius: 20
                     },
                     {
                         label: 'Following',
@@ -1014,14 +1024,14 @@ async function loadFollowerGrowthChart(days) {
                         borderWidth: 3,
                         fill: true,
                         tension: 0.4,
-                        pointRadius: 6,
-                        pointHoverRadius: 8
+                        pointRadius: 15,
+                        pointHoverRadius: 20
                     }
                 ]
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend: {
                         display: true,
@@ -1091,7 +1101,7 @@ async function loadNetGrowthChart(days) {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend: {
                         display: true,
@@ -1193,7 +1203,7 @@ async function loadEngagementTimelineChart(days) {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend: {
                         display: true,
@@ -1256,7 +1266,7 @@ async function loadPostingFrequencyChart(days) {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend: {
                         display: false
@@ -1319,7 +1329,7 @@ async function loadEngagementBreakdownChart(days) {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend: {
                         display: true,
