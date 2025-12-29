@@ -108,7 +108,29 @@ class Database:
                     duration_seconds REAL
                 )
             ''')
-            
+
+            # Post engagement metrics
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS post_engagement (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    collection_date DATE NOT NULL,
+                    post_uri TEXT NOT NULL,
+                    post_text TEXT,
+                    created_at TEXT,
+                    like_count INTEGER DEFAULT 0,
+                    repost_count INTEGER DEFAULT 0,
+                    reply_count INTEGER DEFAULT 0,
+                    quote_count INTEGER DEFAULT 0,
+                    bookmark_count INTEGER DEFAULT 0,
+                    indirect_likes INTEGER DEFAULT 0,
+                    indirect_reposts INTEGER DEFAULT 0,
+                    indirect_replies INTEGER DEFAULT 0,
+                    indirect_bookmarks INTEGER DEFAULT 0,
+                    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(collection_date, post_uri)
+                )
+            ''')
+
             # Indexes
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_followers_date ON followers_snapshot(collection_date)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_following_date ON following_snapshot(collection_date)')
@@ -116,6 +138,8 @@ class Database:
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_changes_type ON follower_changes(change_type)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_metrics_date ON daily_metrics(metric_date)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_daily_counts_date ON daily_counts(collection_date)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_post_engagement_date ON post_engagement(collection_date)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_post_engagement_uri ON post_engagement(post_uri)')
 
             logger.info("Database initialized successfully")
 
