@@ -37,3 +37,16 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.cover
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
