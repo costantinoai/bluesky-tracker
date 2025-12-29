@@ -649,23 +649,28 @@ class Database:
             } for row in cursor.fetchall()]
     
     def get_muted_accounts_with_profile(self):
-        """Get muted accounts with full profile data"""
+        """Get muted accounts with full profile data (requires authentication)"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
+
+            # Check if table exists (only created when authenticated)
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='muted_snapshot'")
+            if not cursor.fetchone():
+                return []
+
             cursor.execute('SELECT MAX(collection_date) FROM muted_snapshot')
             latest_date = cursor.fetchone()[0]
-            
+
             if not latest_date:
                 return []
-            
+
             cursor.execute('''
                 SELECT did, handle, display_name, avatar_url, bio
                 FROM muted_snapshot
                 WHERE collection_date = ?
                 ORDER BY handle
             ''', (latest_date,))
-            
+
             return [{
                 'did': row[0],
                 'handle': row[1],
@@ -675,23 +680,28 @@ class Database:
             } for row in cursor.fetchall()]
     
     def get_blocked_accounts_with_profile(self):
-        """Get blocked accounts with full profile data"""
+        """Get blocked accounts with full profile data (requires authentication)"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
+
+            # Check if table exists (only created when authenticated)
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='blocked_snapshot'")
+            if not cursor.fetchone():
+                return []
+
             cursor.execute('SELECT MAX(collection_date) FROM blocked_snapshot')
             latest_date = cursor.fetchone()[0]
-            
+
             if not latest_date:
                 return []
-            
+
             cursor.execute('''
                 SELECT did, handle, display_name, avatar_url, bio
                 FROM blocked_snapshot
                 WHERE collection_date = ?
                 ORDER BY handle
             ''', (latest_date,))
-            
+
             return [{
                 'did': row[0],
                 'handle': row[1],
