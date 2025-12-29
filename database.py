@@ -78,6 +78,24 @@ class Database:
                 )
             ''')
             
+            # Daily counts for tracking profile vs API discrepancies
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS daily_counts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    collection_date DATE NOT NULL UNIQUE,
+                    profile_followers INTEGER DEFAULT 0,
+                    profile_following INTEGER DEFAULT 0,
+                    api_followers INTEGER DEFAULT 0,
+                    api_following INTEGER DEFAULT 0,
+                    hidden_followers INTEGER DEFAULT 0,
+                    hidden_following INTEGER DEFAULT 0,
+                    muted_count INTEGER DEFAULT 0,
+                    blocked_count INTEGER DEFAULT 0,
+                    suspected_blocks_or_suspensions INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
             # Collection log
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS collection_log (
@@ -97,7 +115,8 @@ class Database:
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_changes_date ON follower_changes(change_date)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_changes_type ON follower_changes(change_type)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_metrics_date ON daily_metrics(metric_date)')
-            
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_daily_counts_date ON daily_counts(collection_date)')
+
             logger.info("Database initialized successfully")
 
     def save_snapshot(self, collection_date, followers, following, profile_counts=None, muted=None, blocked=None):
