@@ -396,19 +396,32 @@ def api_engagement_timeline():
             cursor = conn.cursor()
 
             cursor.execute('''
-                SELECT DATE(created_at) as post_date,
-                       SUM(like_count + COALESCE(indirect_likes, 0)) as total_likes,
-                       SUM(repost_count + COALESCE(indirect_reposts, 0)) as total_reposts,
-                       SUM(reply_count + COALESCE(indirect_replies, 0)) as total_replies,
-                       SUM(quote_count) as total_quotes,
-                       SUM(bookmark_count + COALESCE(indirect_bookmarks, 0)) as total_bookmarks
-                FROM post_engagement
-                WHERE created_at IS NOT NULL
-                GROUP BY DATE(created_at)
-                ORDER BY DATE(created_at) DESC
+                SELECT
+                    engagement_date,
+                    SUM(total_likes) as likes,
+                    SUM(total_reposts) as reposts,
+                    SUM(total_replies) as replies,
+                    SUM(total_quotes) as quotes,
+                    SUM(total_bookmarks) as bookmarks
+                FROM (
+                    SELECT
+                        CASE
+                            WHEN pe.collection_date = (SELECT MIN(collection_date) FROM post_engagement)
+                            THEN DATE(pe.created_at)
+                            ELSE pe.collection_date
+                        END as engagement_date,
+                        pe.like_count + COALESCE(pe.indirect_likes, 0) as total_likes,
+                        pe.repost_count + COALESCE(pe.indirect_reposts, 0) as total_reposts,
+                        pe.reply_count + COALESCE(pe.indirect_replies, 0) as total_replies,
+                        pe.quote_count as total_quotes,
+                        pe.bookmark_count + COALESCE(pe.indirect_bookmarks, 0) as total_bookmarks
+                    FROM post_engagement pe
+                    WHERE pe.created_at IS NOT NULL
+                ) subquery
+                GROUP BY engagement_date
+                ORDER BY engagement_date DESC
                 LIMIT ?
             ''', (days,))
-
             rows = cursor.fetchall()
             rows = list(reversed(rows))
 
@@ -420,6 +433,7 @@ def api_engagement_timeline():
                 'quotes': [row[4] or 0 for row in rows],
                 'bookmarks': [row[5] or 0 for row in rows]
             }
+
 
         # Convert to cumulative sums
         cumulative_data = {
@@ -439,7 +453,7 @@ def api_engagement_timeline():
             cumulative_data['bookmarks'].append(sum(data['bookmarks'][:i+1]))
 
         api_requests.labels(endpoint='/api/graphs/engagement-timeline', status='success').inc()
-        return jsonify(cumulative_data)
+        return jsonify({"daily": data, "cumulative": cumulative_data})
 
     except Exception as e:
         logger.error(f"/api/graphs/engagement-timeline error: {e}")
@@ -460,7 +474,7 @@ def api_posting_frequency():
                 FROM post_engagement
                 WHERE created_at IS NOT NULL
                 GROUP BY DATE(created_at)
-                ORDER BY post_date DESC
+                ORDER BY collection_date DESC
                 LIMIT ?
             ''', (days,))
 

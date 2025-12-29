@@ -321,8 +321,23 @@ def get_report_html(data):
 
                 <!-- Engagement Timeline Chart -->
                 <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 350px;">
-                    <h4 style="margin: 0 0 16px 0; color: #1C1B1F; font-size: 16px; font-weight: 600;">Engagement Timeline</h4>
-                    <div style="position: relative; height: 300px; width: 100%;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h4 style="margin: 0; color: #1C1B1F; font-size: 16px; font-weight: 600;">Engagement Timeline</h4>
+                        <div>
+                            <button id="engagementViewToggle" onclick="toggleEngagementView()" style="
+                                padding: 6px 16px;
+                                border: none;
+                                border-radius: 20px;
+                                background: #1976D2;
+                                color: white;
+                                font-size: 13px;
+                                font-weight: 500;
+                                cursor: pointer;
+                                transition: background 0.2s;
+                            ">Daily</button>
+                        </div>
+                    </div>
+                    <div style="position: relative; height: 280px; width: 100%;">
                         <canvas id="engagementTimelineChart"></canvas>
                     </div>
                 </div>
@@ -859,8 +874,129 @@ def get_report_html(data):
 // CHART.JS HISTORICAL ANALYTICS
 // ========================================================================
 
-let currentTimeRange = 1;
+let currentTimeRange = 999999;  // Default to "All" data
 let chartInstances = {};
+// Store both daily and cumulative engagement data
+let engagementDataStore = {
+    daily: null,
+    cumulative: null,
+    currentView: "cumulative"
+};
+
+function toggleEngagementView() {
+    const button = document.getElementById("engagementViewToggle");
+
+    if (engagementDataStore.currentView === "cumulative") {
+        engagementDataStore.currentView = "daily";
+        button.textContent = "Cumulative";
+        button.style.background = "#4CAF50";
+    } else {
+        engagementDataStore.currentView = "cumulative";
+        button.textContent = "Daily";
+        button.style.background = "#1976D2";
+    }
+
+    updateEngagementChart();
+}
+
+function updateEngagementChart() {
+    if (!engagementDataStore.daily) {
+        return;
+    }
+
+    // Destroy existing chart and recreate with new type
+    if (chartInstances.engagementTimeline) {
+        chartInstances.engagementTimeline.destroy();
+    }
+
+    const dataToShow = engagementDataStore.currentView === "cumulative"
+        ? engagementDataStore.cumulative
+        : engagementDataStore.daily;
+
+    const ctx = document.getElementById('engagementTimelineChart').getContext('2d');
+
+    chartInstances.engagementTimeline = new Chart(ctx, {
+        type: engagementDataStore.currentView === 'cumulative' ? 'line' : 'bar',
+        data: {
+            labels: dataToShow.dates,
+            datasets: [
+                {
+                    label: 'Likes',
+                    data: dataToShow.likes,
+                    backgroundColor: engagementDataStore.currentView === 'cumulative' ? 'rgba(233, 30, 99, 0.1)' : 'rgba(233, 30, 99, 0.8)',
+                    borderColor: '#E91E63',
+                    borderWidth: 2,
+                    fill: engagementDataStore.currentView === 'cumulative',
+                    tension: 0.4
+                },
+                {
+                    label: 'Reposts',
+                    data: dataToShow.reposts,
+                    backgroundColor: engagementDataStore.currentView === 'cumulative' ? 'rgba(76, 175, 80, 0.1)' : 'rgba(76, 175, 80, 0.8)',
+                    borderColor: '#4CAF50',
+                    borderWidth: 2,
+                    fill: engagementDataStore.currentView === 'cumulative',
+                    tension: 0.4
+                },
+                {
+                    label: 'Replies',
+                    data: dataToShow.replies,
+                    backgroundColor: engagementDataStore.currentView === 'cumulative' ? 'rgba(33, 150, 243, 0.1)' : 'rgba(33, 150, 243, 0.8)',
+                    borderColor: '#2196F3',
+                    borderWidth: 2,
+                    fill: engagementDataStore.currentView === 'cumulative',
+                    tension: 0.4
+                },
+                {
+                    label: 'Quotes',
+                    data: dataToShow.quotes,
+                    backgroundColor: engagementDataStore.currentView === 'cumulative' ? 'rgba(156, 39, 176, 0.1)' : 'rgba(156, 39, 176, 0.8)',
+                    borderColor: '#9C27B0',
+                    borderWidth: 2,
+                    fill: engagementDataStore.currentView === 'cumulative',
+                    tension: 0.4
+                },
+                {
+                    label: 'Bookmarks',
+                    data: dataToShow.bookmarks,
+                    backgroundColor: engagementDataStore.currentView === 'cumulative' ? 'rgba(255, 152, 0, 0.1)' : 'rgba(255, 152, 0, 0.8)',
+                    borderColor: '#FF9800',
+                    borderWidth: 2,
+                    fill: engagementDataStore.currentView === 'cumulative',
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'bottom'
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    stacked: engagementDataStore.currentView === 'cumulative'
+                },
+                x: {
+                    stacked: engagementDataStore.currentView === 'cumulative'
+                }
+            },
+            interaction: {
+                mode: 'nearest',
+                axis: 'x',
+                intersect: false
+            }
+        }
+    });
+}
 
 // Initialize charts on page load - wait for both DOM and Chart.js
 function initCharts() {
@@ -1127,7 +1263,14 @@ async function loadNetGrowthChart(days) {
 async function loadEngagementTimelineChart(days) {
     try {
         const response = await fetch(`/api/graphs/engagement-timeline?days=${days}`);
-        const data = await response.json();
+        const responseData = await response.json();
+
+        // Store both daily and cumulative data
+        engagementDataStore.daily = responseData.daily;
+        engagementDataStore.cumulative = responseData.cumulative;
+
+        // Use cumulative by default
+        const data = engagementDataStore.cumulative;
 
         const ctx = document.getElementById('engagementTimelineChart').getContext('2d');
 
@@ -1153,17 +1296,17 @@ async function loadEngagementTimelineChart(days) {
                         label: 'Likes',
                         data: data.likes,
                         borderColor: '#E91E63',
-                        backgroundColor: 'rgba(233, 30, 99, 0.3)',
+                        backgroundColor: 'rgba(233, 30, 99, 0.1)',
                         fill: true,
                         tension: 0.4,
-                        pointRadius: data.dates.length === 1 ? 6 : 3,  // Larger points for single day
+                        pointRadius: data.dates.length === 1 ? 6 : 3,
                         borderWidth: 2
                     },
                     {
                         label: 'Reposts',
                         data: data.reposts,
                         borderColor: '#4CAF50',
-                        backgroundColor: 'rgba(76, 175, 80, 0.3)',
+                        backgroundColor: 'rgba(76, 175, 80, 0.1)',
                         fill: true,
                         tension: 0.4,
                         pointRadius: data.dates.length === 1 ? 6 : 3,
@@ -1173,7 +1316,7 @@ async function loadEngagementTimelineChart(days) {
                         label: 'Replies',
                         data: data.replies,
                         borderColor: '#2196F3',
-                        backgroundColor: 'rgba(33, 150, 243, 0.3)',
+                        backgroundColor: 'rgba(33, 150, 243, 0.1)',
                         fill: true,
                         tension: 0.4,
                         pointRadius: data.dates.length === 1 ? 6 : 3,
@@ -1183,7 +1326,7 @@ async function loadEngagementTimelineChart(days) {
                         label: 'Quotes',
                         data: data.quotes,
                         borderColor: '#9C27B0',
-                        backgroundColor: 'rgba(156, 39, 176, 0.3)',
+                        backgroundColor: 'rgba(156, 39, 176, 0.1)',
                         fill: true,
                         tension: 0.4,
                         pointRadius: data.dates.length === 1 ? 6 : 3,
@@ -1193,7 +1336,7 @@ async function loadEngagementTimelineChart(days) {
                         label: 'Bookmarks',
                         data: data.bookmarks,
                         borderColor: '#FF9800',
-                        backgroundColor: 'rgba(255, 152, 0, 0.3)',
+                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
                         fill: true,
                         tension: 0.4,
                         pointRadius: data.dates.length === 1 ? 6 : 3,
