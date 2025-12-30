@@ -16,9 +16,9 @@ version: '3.8'
 
 services:
   bluesky-tracker:
-    # Using pre-built image from Docker Hub
+    # Using pre-built image from GitHub Container Registry
     # Available platforms: amd64, arm64, armv7 (Raspberry Pi compatible)
-    image: costantinoai/bluesky-tracker:latest
+    image: ghcr.io/costantinoai/bluesky-tracker:latest
 
     container_name: bluesky-tracker
 

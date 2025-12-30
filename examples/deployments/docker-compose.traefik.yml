@@ -5,7 +5,7 @@ version: '3.8'
 
 services:
   bluesky-tracker:
-    image: costantinoai/bluesky-tracker:latest
+    image: ghcr.io/costantinoai/bluesky-tracker:latest
     container_name: bluesky-tracker
     env_file:
       - .env

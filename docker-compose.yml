@@ -18,11 +18,6 @@ services:
     env_file:
       - .env
 
-    environment:
-      - PORT=8095
-      - DATABASE_PATH=/app/data/bluesky.db
-      - TZ=Europe/Brussels
-
     networks:
       - homepage_default
       - monitoring_monitoring
