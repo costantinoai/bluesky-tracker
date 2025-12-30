@@ -2,46 +2,47 @@
 Modern Material Design 3 HTML templates for Bluesky Tracker with Expandable Lists
 """
 
+
 def get_report_html(data):
     """Generate modern Material Design 3 report page with expandable user lists"""
 
     # Extract data
-    stats = data.get('stats', {})
-    unfollowers = data.get('unfollowers', [])
-    non_mutual = data.get('non_mutual', [])
-    followers_only = data.get('followers_only', [])
-    mutual_follows = data.get('mutual_follows', [])
-    hidden_analytics = data.get('hidden_analytics', {})
-    hidden_categories = data.get('hidden_categories', {})
-    change_history = data.get('change_history', [])
-    top_posts = data.get('top_posts', [])
-    advanced_metrics = data.get('advanced_metrics', {})
-    top_interactors = data.get('top_interactors', [])
-    last_updated = data.get('last_updated', 'Never')
-    bluesky_handle = data.get('bluesky_handle', 'your-handle.bsky.social')
+    stats = data.get("stats", {})
+    unfollowers = data.get("unfollowers", [])
+    non_mutual = data.get("non_mutual", [])
+    followers_only = data.get("followers_only", [])
+    mutual_follows = data.get("mutual_follows", [])
+    hidden_analytics = data.get("hidden_analytics", {})
+    hidden_categories = data.get("hidden_categories", {})
+    change_history = data.get("change_history", [])
+    top_posts = data.get("top_posts", [])
+    advanced_metrics = data.get("advanced_metrics", {})
+    top_interactors = data.get("top_interactors", [])
+    last_updated = data.get("last_updated", "Never")
+    bluesky_handle = data.get("bluesky_handle", "your-handle.bsky.social")
 
     # Helper function for user cards with hiding capability
-    def user_card(user, meta_text='', show_bio=True, index=0):
-        handle = user.get('handle', '')
-        display_name = user.get('display_name', handle)
-        avatar_url = user.get('avatar_url', '')
-        bio = user.get('bio', '')
+    def user_card(user, meta_text="", show_bio=True, index=0):
+        handle = user.get("handle", "")
+        display_name = user.get("display_name", handle)
+        avatar_url = user.get("avatar_url", "")
+        bio = user.get("bio", "")
 
-        avatar_html = ''
+        avatar_html = ""
         if avatar_url and avatar_url.strip():
             avatar_html = f'<div class="user-avatar"><img src="{avatar_url}" alt="{display_name}" onerror="this.style.display=\'none\'"></div>'
 
-        bio_html = ''
+        bio_html = ""
         if show_bio and bio:
-            bio_truncated = bio[:120] + ('...' if len(bio) > 120 else '')
+            bio_truncated = bio[:120] + ("..." if len(bio) > 120 else "")
             bio_html = f'<p class="user-bio">{bio_truncated}</p>'
 
-        meta_html = f'<span class="user-meta">{meta_text}</span>' if meta_text else ''
-        hidden_class = ' hidden-card' if index >= 50 else ''
+        meta_html = f'<span class="user-meta">{meta_text}</span>' if meta_text else ""
+        hidden_class = " hidden-card" if index >= 50 else ""
 
-        profile_url = f'https://bsky.app/profile/{handle}'
+        profile_url = f"https://bsky.app/profile/{handle}"
 
-        return f'''<div class="user-card{hidden_class}" onclick="window.open('{profile_url}', '_blank')">
+        return f"""<div class="user-card{hidden_class}" onclick="window.open('{profile_url}', '_blank')">
             {avatar_html}
             <div class="user-content">
                 <div class="user-header">
@@ -56,10 +57,10 @@ def get_report_html(data):
                     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/>
                 </svg>
             </div>
-        </div>'''
+        </div>"""
 
     # HTML with embedded CSS
-    html = f'''<!DOCTYPE html>
+    html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -246,7 +247,7 @@ def get_report_html(data):
                 <div class="stat-change">Follow you only</div>
             </div>
         </div>
-'''
+"""
 
     html += """
 <!-- HISTORICAL ANALYTICS SECTION -->
@@ -389,7 +390,7 @@ def get_report_html(data):
 
     """
 
-        # Top Posts Section
+    # Top Posts Section
     if top_posts:
         html += f"""
         <div class="section-card">
@@ -411,44 +412,64 @@ def get_report_html(data):
 """
         for post in top_posts[:10]:
             # Calculate engagement score (including indirect engagement from quote posts)
-            direct_score = post.get('likes', 0) + post.get('reposts', 0) * 2 + post.get('replies', 0) * 3 + post.get('bookmarks', 0) * 2
-            indirect_score = (post.get('indirect_likes', 0) + post.get('indirect_reposts', 0) * 2 + post.get('indirect_replies', 0) * 3 + post.get('indirect_bookmarks', 0) * 2) * 0.5
+            direct_score = (
+                post.get("likes", 0)
+                + post.get("reposts", 0) * 2
+                + post.get("replies", 0) * 3
+                + post.get("bookmarks", 0) * 2
+            )
+            indirect_score = (
+                post.get("indirect_likes", 0)
+                + post.get("indirect_reposts", 0) * 2
+                + post.get("indirect_replies", 0) * 3
+                + post.get("indirect_bookmarks", 0) * 2
+            ) * 0.5
             engagement_score = int(direct_score + indirect_score)
 
             # Extract post ID from URI
-            post_uri = post.get('uri', '')
-            post_id = post_uri.split('/')[-1] if post_uri else ''
-            post_url = f'https://bsky.app/profile/{bluesky_handle}/post/{post_id}' if post_id else '#'
+            post_uri = post.get("uri", "")
+            post_id = post_uri.split("/")[-1] if post_uri else ""
+            post_url = (
+                f"https://bsky.app/profile/{bluesky_handle}/post/{post_id}"
+                if post_id
+                else "#"
+            )
 
             # Escape quotes in post text
-            post_text = post.get('text', '').replace("'", "\\'").replace('"', '&quot;')
+            post_text = post.get("text", "").replace("'", "\\'").replace('"', "&quot;")
 
             # Format timestamp
-            created_at = post.get('created_at', '')
+            created_at = post.get("created_at", "")
             if created_at:
                 from datetime import datetime
+
                 try:
-                    dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                    formatted_date = dt.strftime('%b %d, %Y at %I:%M %p')
+                    dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                    formatted_date = dt.strftime("%b %d, %Y at %I:%M %p")
                 except:
                     formatted_date = created_at
             else:
-                formatted_date = 'Unknown date'
+                formatted_date = "Unknown date"
 
             # Pre-calculate indirect engagement values (to avoid nested f-strings)
-            indirect_likes = post.get('indirect_likes', 0)
-            indirect_reposts = post.get('indirect_reposts', 0)
-            indirect_replies = post.get('indirect_replies', 0)
-            indirect_bookmarks = post.get('indirect_bookmarks', 0)
-            total_indirect = indirect_likes + indirect_reposts + indirect_replies + indirect_bookmarks
+            indirect_likes = post.get("indirect_likes", 0)
+            indirect_reposts = post.get("indirect_reposts", 0)
+            indirect_replies = post.get("indirect_replies", 0)
+            indirect_bookmarks = post.get("indirect_bookmarks", 0)
+            total_indirect = (
+                indirect_likes
+                + indirect_reposts
+                + indirect_replies
+                + indirect_bookmarks
+            )
 
             # Build indirect engagement badge HTML (if there's indirect engagement)
-            indirect_badge = ''
+            indirect_badge = ""
             if total_indirect > 0:
                 indirect_badge = f'<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #E1F5FE; border-radius: 12px; font-size: 13px;" title="Indirect Engagement: {indirect_likes} likes, {indirect_reposts} reposts, {indirect_replies} replies, {indirect_bookmarks} bookmarks on quote posts"><span class="material-icons" style="font-size: 16px; color: #0277BD;">add_circle</span><span style="font-weight: 500; color: #0277BD;">+{total_indirect} indirect</span></div>'
 
             # Generate profile URL for avatar (generic Bluesky profile)
-            profile_url_for_avatar = f'https://bsky.app/profile/{bluesky_handle}'
+            profile_url_for_avatar = f"https://bsky.app/profile/{bluesky_handle}"
 
             html += f"""
                     <div class="post-card" onclick="window.open('{post_url}', '_blank')" style="background: white; border: 1px solid #E0E0E0; border-radius: 12px; padding: 0; margin-bottom: 16px; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden;">
@@ -504,16 +525,21 @@ def get_report_html(data):
 """
 
     # Unfollowers Section
-    unfollowers_body = ''
+    unfollowers_body = ""
     if unfollowers:
-        cards = ''.join([user_card(u, u.get('change_date', ''), True, i) for i, u in enumerate(unfollowers)])
+        cards = "".join(
+            [
+                user_card(u, u.get("change_date", ""), True, i)
+                for i, u in enumerate(unfollowers)
+            ]
+        )
         unfollowers_body = f'<div class="user-grid" id="unfollowers-grid">{cards}</div>'
         if len(unfollowers) > 50:
             unfollowers_body += f'<div class="show-more-container"><button class="show-more-btn" onclick="showMoreCards(\'unfollowers-grid\')">Show All {len(unfollowers)} Unfollowers</button></div>'
     else:
         unfollowers_body = '<div class="empty-state"><div class="empty-state-icon">🎉</div><h4>No unfollowers</h4></div>'
 
-    html += f'''
+    html += f"""
         <div class="section-card">
             <div class="section-header" onclick="toggleSection(this)">
                 <div class="section-title">
@@ -532,11 +558,15 @@ def get_report_html(data):
                 <div class="section-body">{unfollowers_body}</div>
             </div>
         </div>
-'''
+"""
 
     # Hidden Accounts / Blocked You / Deactivated Section
-    hidden_current = hidden_analytics.get('current', {})
-    if hidden_current.get('suspected_blocks_or_suspensions', 0) > 0 or hidden_current.get('blocked_count', 0) > 0 or hidden_current.get('muted_count', 0) > 0:
+    hidden_current = hidden_analytics.get("current", {})
+    if (
+        hidden_current.get("suspected_blocks_or_suspensions", 0) > 0
+        or hidden_current.get("blocked_count", 0) > 0
+        or hidden_current.get("muted_count", 0) > 0
+    ):
         html += f"""
         <div class="section-card">
             <div class="section-header" onclick="toggleSection(this)">
@@ -573,16 +603,16 @@ def get_report_html(data):
                     </div>
 """
         # Show accounts you blocked
-        blocked_accounts = hidden_categories.get('blocked', {}).get('accounts', [])
+        blocked_accounts = hidden_categories.get("blocked", {}).get("accounts", [])
         if blocked_accounts:
             html += f"""
                     <div style="background: var(--md-error-container); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
                         <h4 style="font-size: 16px; font-weight: 600; margin-bottom: 12px; color: var(--md-error);">🚫 You Blocked ({len(blocked_accounts)})</h4>
 """
             for user in blocked_accounts[:10]:
-                display_name = user.get('display_name', user.get('handle'))
-                handle = user.get('handle', '')
-                bio = user.get('bio', '')[:100]
+                display_name = user.get("display_name", user.get("handle"))
+                handle = user.get("handle", "")
+                bio = user.get("bio", "")[:100]
                 html += f"""
                         <div class="card" style="margin-bottom: 8px; cursor: pointer;" onclick="window.open('https://bsky.app/profile/{handle}', '_blank')">
                             <strong>{display_name}</strong> <span style="color: var(--md-on-surface-variant);">@{handle}</span>
@@ -592,9 +622,9 @@ def get_report_html(data):
             html += """
                     </div>
 """
-        
+
         # Show suspected blocks/deactivations
-        suspected = hidden_current.get('suspected_blocks_or_suspensions', 0)
+        suspected = hidden_current.get("suspected_blocks_or_suspensions", 0)
         html += f"""
                     <div style="background: var(--md-secondary-container); padding: 20px; border-radius: 12px;">
                         <h4 style="font-size: 18px; font-weight: 700; margin-bottom: 12px;">❓ Blocked You or Deactivated: {suspected} accounts</h4>
@@ -639,25 +669,25 @@ def get_report_html(data):
                 <div class="section-body">
                     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
 """
-        
+
         for interactor in top_interactors[:20]:
-            handle = interactor.get('handle', '')
-            display_name = interactor.get('display_name', handle)
-            avatar_url = interactor.get('avatar', '')
-            score = interactor.get('score', 0)
-            likes = interactor.get('likes', 0)
-            replies = interactor.get('replies', 0)
-            reposts = interactor.get('reposts', 0)
-            quotes = interactor.get('quotes', 0)
-            follows = interactor.get('follows', 0)
-            
-            avatar_html = ''
+            handle = interactor.get("handle", "")
+            display_name = interactor.get("display_name", handle)
+            avatar_url = interactor.get("avatar", "")
+            score = interactor.get("score", 0)
+            likes = interactor.get("likes", 0)
+            replies = interactor.get("replies", 0)
+            reposts = interactor.get("reposts", 0)
+            quotes = interactor.get("quotes", 0)
+            follows = interactor.get("follows", 0)
+
+            avatar_html = ""
             if avatar_url and avatar_url.strip():
                 avatar_html = f'<div style="width: 56px; height: 56px;"><img src="{avatar_url}" alt="{display_name}" style="width: 56px; height: 56px; border-radius: 50%; object-fit: cover;" onerror="this.parentNode.style.display=&quot;none&quot;" loading="lazy"></div>'
-            
-            profile_url = f'https://bsky.app/profile/{handle}'
-            
-            badges_html = ''
+
+            profile_url = f"https://bsky.app/profile/{handle}"
+
+            badges_html = ""
             if likes > 0:
                 badges_html += f'<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #E3F2FD; color: #1976D2;"><span class="material-icons" style="font-size: 14px;">favorite</span>{likes}</span>'
             if replies > 0:
@@ -668,7 +698,7 @@ def get_report_html(data):
                 badges_html += f'<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #B3E5FC; color: #01579B; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">format_quote</span>{quotes}</span>'
             if follows > 0:
                 badges_html += f'<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #BBDEFB; color: #1976D2; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">person_add</span>{follows}</span>'
-            
+
             html += f"""
                         <div style="background: white; border: 1px solid #CAC4D0; border-radius: 12px; padding: 16px; display: flex; gap: 16px; transition: all 0.2s; cursor: pointer;" onclick="window.open('{profile_url}', '_blank')">
                             {avatar_html}
@@ -684,26 +714,27 @@ def get_report_html(data):
                             </div>
                         </div>
 """
-        
+
         html += """
                     </div>
                 </div>
             </div>
         </div>
 """
-    
 
     # Mutual Follows Section
-    mutual_body = ''
+    mutual_body = ""
     if mutual_follows:
-        cards = ''.join([user_card(u, '', True, i) for i, u in enumerate(mutual_follows)])
+        cards = "".join(
+            [user_card(u, "", True, i) for i, u in enumerate(mutual_follows)]
+        )
         mutual_body = f'<div class="user-grid" id="mutual-grid">{cards}</div>'
         if len(mutual_follows) > 50:
             mutual_body += f'<div class="show-more-container"><button class="show-more-btn" onclick="showMoreCards(\'mutual-grid\')">Show All {len(mutual_follows)} Mutual Follows</button></div>'
     else:
         mutual_body = '<div class="empty-state"><div class="empty-state-icon">🤝</div><h4>No mutual follows yet</h4></div>'
 
-    html += f'''
+    html += f"""
         <div class="section-card">
             <div class="section-header" onclick="toggleSection(this)">
                 <div class="section-title">
@@ -722,19 +753,19 @@ def get_report_html(data):
                 <div class="section-body">{mutual_body}</div>
             </div>
         </div>
-'''
+"""
 
     # Non-Mutual Section
-    non_mutual_body = ''
+    non_mutual_body = ""
     if non_mutual:
-        cards = ''.join([user_card(u, '', True, i) for i, u in enumerate(non_mutual)])
+        cards = "".join([user_card(u, "", True, i) for i, u in enumerate(non_mutual)])
         non_mutual_body = f'<div class="user-grid" id="non-mutual-grid">{cards}</div>'
         if len(non_mutual) > 50:
             non_mutual_body += f'<div class="show-more-container"><button class="show-more-btn" onclick="showMoreCards(\'non-mutual-grid\')">Show All {len(non_mutual)} Accounts</button></div>'
     else:
         non_mutual_body = '<div class="empty-state"><div class="empty-state-icon">✨</div><h4>Everyone follows back</h4></div>'
 
-    html += f'''
+    html += f"""
         <div class="section-card">
             <div class="section-header" onclick="toggleSection(this)">
                 <div class="section-title">
@@ -753,19 +784,23 @@ def get_report_html(data):
                 <div class="section-body">{non_mutual_body}</div>
             </div>
         </div>
-'''
+"""
 
     # Followers Only Section
-    followers_only_body = ''
+    followers_only_body = ""
     if followers_only:
-        cards = ''.join([user_card(u, '', True, i) for i, u in enumerate(followers_only)])
-        followers_only_body = f'<div class="user-grid" id="followers-only-grid">{cards}</div>'
+        cards = "".join(
+            [user_card(u, "", True, i) for i, u in enumerate(followers_only)]
+        )
+        followers_only_body = (
+            f'<div class="user-grid" id="followers-only-grid">{cards}</div>'
+        )
         if len(followers_only) > 50:
             followers_only_body += f'<div class="show-more-container"><button class="show-more-btn" onclick="showMoreCards(\'followers-only-grid\')">Show All {len(followers_only)} Followers</button></div>'
     else:
         followers_only_body = '<div class="empty-state"><div class="empty-state-icon">🤷</div><h4>No followers only</h4></div>'
 
-    html += f'''
+    html += f"""
         <div class="section-card">
             <div class="section-header" onclick="toggleSection(this)">
                 <div class="section-title">
@@ -784,10 +819,10 @@ def get_report_html(data):
                 <div class="section-body">{followers_only_body}</div>
             </div>
         </div>
-'''
+"""
 
     # Footer with JavaScript
-    html += '''
+    html += """
     </div>
     <script>
         function toggleSection(header) {
@@ -862,10 +897,7 @@ def get_report_html(data):
         }
     </style>
 </body>
-</html>'''
-
-    
-
+</html>"""
 
     html += """
     <script>
