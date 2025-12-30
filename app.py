@@ -684,14 +684,36 @@ def api_stats_summary():
         return jsonify({"error": str(e)}), 500
 
 
-if __name__ == "__main__":
+def init_app():
+    """Initialize the application (scheduler, initial collection, etc.)"""
     logger.info("Bluesky Tracker initializing...")
 
-    # Initialize metrics on startup
+    # Check if database is empty (no collections yet)
+    db_empty = False
+    try:
+        stats = db.get_stats(days=1)
+        db_empty = stats["follower_count"] == 0 and stats["following_count"] == 0
+    except Exception:
+        db_empty = True
+
+    # If database is empty, trigger initial collection
+    if db_empty:
+        logger.info("Database is empty. Running initial data collection...")
+        try:
+            from collector import BlueskyCollector
+
+            collector = BlueskyCollector()
+            collector.collect()
+            logger.info("Initial data collection completed")
+        except Exception as e:
+            logger.error(f"Initial collection failed: {e}")
+            logger.info("You can trigger collection manually via: /api/collect")
+
+    # Initialize metrics
     try:
         update_metrics()
     except Exception as e:
-        logger.warning(f"Could not initialize metrics (database may be empty): {e}")
+        logger.warning(f"Could not initialize metrics: {e}")
 
     # Schedule daily collection at 6 AM
     scheduler.add_job(
@@ -703,11 +725,18 @@ if __name__ == "__main__":
     )
     scheduler.start()
 
-    logger.info(f"Bluesky Tracker starting on port {Config.PORT}")
+    logger.info(f"Bluesky Tracker started successfully")
     logger.info(f"Tracking: {Config.BLUESKY_HANDLE}")
     logger.info(
         f"Scheduled collection: daily at {Config.COLLECTION_TIME} {Config.TIMEZONE}"
     )
 
-    # Run Flask
+
+# Initialize when module is loaded (works with both gunicorn and python app.py)
+init_app()
+
+
+if __name__ == "__main__":
+    # Run Flask development server
+    logger.info(f"Starting development server on port {Config.PORT}")
     app.run(host="0.0.0.0", port=Config.PORT, threaded=True)
