@@ -148,12 +148,17 @@ docker compose up -d
 ### Docker Run
 
 ```bash
+# Download and configure .env file
+curl -O https://raw.githubusercontent.com/costantinoai/bluesky-tracker/main/.env.example
+cp .env.example .env
+nano .env  # Add your handle and app password
+
+# Run with .env file
 docker run -d \
   --name bluesky-tracker \
+  --env-file .env \
   -p 8095:8095 \
   -v $(pwd)/data:/app/data \
-  -e BLUESKY_HANDLE=yourname.bsky.social \
-  -e BLUESKY_APP_PASSWORD=your-app-password \
   --restart unless-stopped \
   ghcr.io/costantinoai/bluesky-tracker:latest
 ```
@@ -186,16 +191,27 @@ TZ=Europe/Brussels  # Timezone for scheduled collections
 
 ## Scheduling
 
-The tracker includes a built-in scheduler that runs at 6:00 AM (your configured timezone). For additional flexibility, set up platform-specific scheduling:
+**Built-in Scheduler (No Setup Required):**
+
+The tracker automatically collects data daily at **6:00 AM** (timezone from your `.env` `TZ` setting) while the container is running. This scheduler runs internally within the application - it doesn't modify any system settings or require external cron jobs.
+
+**How it works:**
+- Runs only while the Docker container is active
+- No system-level configuration needed
+- Automatically stops when container stops
+- Configure timezone in `.env` file (`TZ=Europe/Brussels`)
+
+**Optional: Additional Collection Times**
+
+If you want additional collection runs at different times, set up platform-specific scheduling:
 
 ### Linux/macOS (Cron)
 
 ```bash
-# Add to crontab (run daily at 2am)
 crontab -e
 ```
 
-Add this line:
+Add this line (example: daily at 2 AM):
 ```cron
 0 2 * * * docker exec bluesky-tracker python /app/collector.py
 ```
@@ -209,21 +225,6 @@ Add this line:
 5. Program: `docker`
 6. Arguments: `exec bluesky-tracker python /app/collector.py`
 
-### Docker Compose with External Cron
-
-```yaml
-services:
-  tracker:
-    # ... your configuration ...
-
-  cron:
-    image: alpine:latest
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: >
-      sh -c "echo '0 2 * * * docker exec bluesky-tracker python /app/collector.py' | crontab - && crond -f"
-```
-
 ### Synology NAS
 
 1. Control Panel → Task Scheduler
@@ -234,12 +235,17 @@ services:
    docker exec bluesky-tracker python /app/collector.py
    ```
 
-### Portainer
+### Manual Collection
 
-1. Go to Containers → bluesky-tracker
-2. Console → Connect
-3. Run manually: `python /app/collector.py`
-4. Or use Portainer's webhook feature to trigger via HTTP
+Trigger collection manually anytime:
+
+```bash
+# Via Docker exec
+docker exec bluesky-tracker python /app/collector.py
+
+# Or via API
+curl -X POST http://localhost:8095/api/collect
+```
 
 ---
 
@@ -251,18 +257,6 @@ services:
 - **API Stats**: http://localhost:8095/api/stats
 - **Health Check**: http://localhost:8095/health
 - **Prometheus Metrics**: http://localhost:8095/metrics
-
-### Manual Data Collection
-
-Trigger collection manually:
-
-```bash
-# Via Docker exec
-docker exec bluesky-tracker python /app/collector.py
-
-# Or via API (requires running container)
-curl -X POST http://localhost:8095/api/collect
-```
 
 ### Backup Your Data
 
