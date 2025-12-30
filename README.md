@@ -101,7 +101,7 @@ The installer will:
 - Keep your database backed up - it contains all historical data
 - Run collections daily for accurate trend tracking
 
-**Recommendation:** Set up daily scheduled collections (see [Scheduling](#scheduling) below).
+**Recommendation:** The built-in scheduler runs daily at 6 AM (see [Scheduling](#scheduling)).
 
 ---
 
@@ -273,6 +273,149 @@ docker restart bluesky-tracker
 
 ---
 
+## Troubleshooting
+
+### Container Won't Start
+
+**Check logs:**
+```bash
+docker logs bluesky-tracker
+```
+
+**Common issues:**
+
+1. **Missing credentials**: Create `.env` file with your handle and app password
+2. **Invalid handle**: Use `yourname.bsky.social` (no @ symbol)
+3. **Permission errors**: `sudo chown -R $USER:$USER ./data && chmod 755 ./data`
+
+### Authentication Failed
+
+**Error:** `❌ Authentication failed`
+
+**Fix:**
+1. Go to https://bsky.app/settings/app-passwords
+2. Delete old password, create new one
+3. Update `.env` file
+4. Restart: `docker compose restart`
+
+### Port Already in Use
+
+**Find what's using port 8095:**
+```bash
+sudo lsof -i :8095
+```
+
+**Change port in `.env`:**
+```bash
+PORT=9095
+docker compose restart
+```
+
+### No Data Appearing
+
+**Trigger manual collection:**
+```bash
+curl -X POST http://localhost:8095/api/collect
+```
+
+**Or wait for scheduled collection** (6 AM based on `TZ` setting)
+
+### Database Issues
+
+**Database locked:** Wait a few seconds and retry
+
+**Corrupted database:**
+```bash
+# Restore from backup
+docker compose stop
+cp backups/bluesky-YYYYMMDD.db data/bluesky.db
+docker compose up -d
+```
+
+### Rate Limits
+
+Bluesky API has rate limits. If you hit them:
+- Wait 15 minutes
+- Retry collection
+
+---
+
+## Security
+
+### App Password Management
+
+**Required:** Use Bluesky app password (not your main password)
+
+1. Generate at: https://bsky.app/settings/app-passwords
+2. Store in `.env` file (never commit to git)
+3. Set permissions: `chmod 600 .env`
+4. Rotate every 90 days
+
+**If compromised:**
+1. Revoke at: https://bsky.app/settings/app-passwords
+2. Generate new password
+3. Update `.env` file
+4. Restart container
+
+### Docker Security
+
+**Built-in protection:**
+- Non-root user (UID 1000)
+- Minimal Alpine Linux base
+- No unnecessary packages
+
+**Recommended settings:**
+
+Add to `docker-compose.yml`:
+```yaml
+services:
+  bluesky-tracker:
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+```
+
+### Network Security
+
+**Local use only:**
+```yaml
+ports:
+  - "127.0.0.1:8095:8095"  # Only accessible from this machine
+```
+
+**Public access (HTTPS required):**
+
+Use reverse proxy:
+- [Caddy](examples/deployments/docker-compose.caddy.yml) - Zero config HTTPS
+- [Traefik](examples/deployments/docker-compose.traefik.yml) - Automatic Let's Encrypt
+
+**Never expose port 8095 directly to internet without HTTPS**
+
+### Data Security
+
+**File permissions:**
+```bash
+chmod 700 data/
+chmod 600 data/bluesky.db
+```
+
+**Regular backups:**
+```bash
+cp data/bluesky.db "backups/bluesky-$(date +%Y%m%d).db"
+```
+
+**Privacy:**
+- All data stored locally in SQLite
+- No external services (except Bluesky API)
+- No analytics or tracking
+- Delete database to remove all data
+
+---
+
 ## Monitoring & Integrations
 
 The tracker exports Prometheus metrics and can integrate with:
@@ -286,48 +429,6 @@ See [examples/](examples/) directory for configurations.
 
 ---
 
-## Troubleshooting
-
-### No Data Showing
-
-- Check container logs: `docker logs bluesky-tracker`
-- Verify environment variables are set correctly
-- Ensure app password is valid
-- Run manual collection: `docker exec bluesky-tracker python /app/collector.py`
-
-### Unfollowers Not Detected
-
-- Unfollowers are tracked from your **first** collection forward
-- Historical unfollowers before first run **cannot** be detected
-- Requires at least 2 collections (24 hours apart) to detect changes
-
-### Database Errors
-
-- Ensure `/app/data` volume is writable
-- Check disk space: `df -h`
-- Verify database isn't corrupted: `docker exec bluesky-tracker sqlite3 /app/data/bluesky.db "PRAGMA integrity_check;"`
-
-### Rate Limits
-
-- Bluesky API has rate limits
-- The tracker includes delays (0.7s between requests)
-- If you hit limits, wait and try again later
-
-**Full troubleshooting guide:** [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
-
----
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [INSTALLATION.md](INSTALLATION.md) | Detailed installation instructions for all platforms |
-| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Common issues and solutions |
-| [SECURITY.md](SECURITY.md) | Security best practices |
-| [examples/](examples/) | Integration examples (Grafana, Homepage, etc.) |
-
----
-
 ## Platform Support
 
 | Platform | Architecture | Status |
@@ -338,18 +439,6 @@ See [examples/](examples/) directory for configurations.
 | macOS Intel | amd64 | ✅ Supported |
 | macOS Apple Silicon | arm64 | ✅ Supported |
 | Windows | amd64 | ✅ Supported (via WSL2 or Docker Desktop) |
-
----
-
-## Privacy & Security
-
-- Your app password is stored **only** in your local `.env` file
-- The `.env` file is automatically excluded from git
-- No data is sent to external services except Bluesky's official API
-- All data is stored locally in SQLite database
-- App passwords can be revoked anytime from Bluesky settings
-
-See [SECURITY.md](SECURITY.md) for detailed security information.
 
 ---
 
