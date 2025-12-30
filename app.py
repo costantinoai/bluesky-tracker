@@ -201,6 +201,11 @@ def report():
                     SELECT post_uri, post_text, like_count, repost_count, reply_count, quote_count,
                            bookmark_count, created_at, indirect_likes, indirect_reposts, indirect_replies, indirect_bookmarks
                     FROM post_engagement
+                    WHERE (post_uri, collection_date) IN (
+                        SELECT post_uri, MAX(collection_date)
+                        FROM post_engagement
+                        GROUP BY post_uri
+                    )
                     ORDER BY (like_count + repost_count * 2 + reply_count * 3 + bookmark_count * 2) DESC
                     LIMIT 10
                 """
@@ -480,6 +485,11 @@ def api_engagement_timeline():
                         pe.bookmark_count + COALESCE(pe.indirect_bookmarks, 0) as total_bookmarks
                     FROM post_engagement pe
                     WHERE pe.created_at IS NOT NULL
+                    AND (pe.post_uri, pe.collection_date) IN (
+                        SELECT post_uri, MAX(collection_date)
+                        FROM post_engagement
+                        GROUP BY post_uri
+                    )
                 ) subquery
                 GROUP BY engagement_date
                 ORDER BY engagement_date ASC
@@ -542,6 +552,11 @@ def api_posting_frequency():
                 SELECT DATE(created_at) as post_date, COUNT(*) as post_count
                 FROM post_engagement
                 WHERE created_at IS NOT NULL
+                AND (post_uri, collection_date) IN (
+                    SELECT post_uri, MAX(collection_date)
+                    FROM post_engagement
+                    GROUP BY post_uri
+                )
                 GROUP BY DATE(created_at)
                 ORDER BY collection_date DESC
                 LIMIT ?
@@ -590,6 +605,11 @@ def api_engagement_breakdown():
                     SUM(bookmark_count + indirect_bookmarks) as bookmarks
                 FROM post_engagement
                 WHERE collection_date >= date('now', '-' || ? || ' days')
+                AND (post_uri, collection_date) IN (
+                    SELECT post_uri, MAX(collection_date)
+                    FROM post_engagement
+                    GROUP BY post_uri
+                )
             """,
                 (days,),
             )
@@ -653,6 +673,11 @@ def api_stats_summary():
                     SUM(indirect_likes + indirect_reposts + indirect_replies + indirect_bookmarks) as total_indirect
                 FROM post_engagement
                 WHERE collection_date >= date('now', '-' || ? || ' days')
+                AND (post_uri, collection_date) IN (
+                    SELECT post_uri, MAX(collection_date)
+                    FROM post_engagement
+                    GROUP BY post_uri
+                )
             """,
                 (days,),
             )
