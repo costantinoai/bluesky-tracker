@@ -55,7 +55,6 @@ jobs:
         with:
           images: |
             ${{ env.GHCR_REGISTRY }}/${{ env.IMAGE_NAME }}
-            ${{ secrets.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_IMAGE || '' }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
