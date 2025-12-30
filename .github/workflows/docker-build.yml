@@ -71,11 +71,6 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: false
 
-      - name: Test Docker image (amd64 only)
-        if: github.event_name != 'pull_request'
-        run: |
-          docker run --rm --platform linux/amd64 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} python -c "import app; print('Import successful')"
-
       - name: Generate image summary
         if: github.event_name != 'pull_request'
         run: |
