@@ -121,9 +121,20 @@ You **must** generate an app password:
 
 ### System Requirements
 
-- Docker and Docker Compose
+**Docker (Recommended):**
+- Docker 20.10 or later
+- Docker Compose v2.0 or later
 - 100MB disk space (database grows with data)
 - Runs on: Linux (amd64, arm64, armv7), macOS, Windows
+
+**Install Docker:**
+- **Linux**: `curl -fsSL https://get.docker.com | sh`
+- **macOS**: [Docker Desktop](https://docs.docker.com/desktop/install/mac-install/)
+- **Windows**: [Docker Desktop](https://docs.docker.com/desktop/install/windows-install/)
+
+**Or Python 3.11+ (Alternative):**
+- For manual installation without Docker
+- See [pip installation](#pip-install-alternative) below
 
 ---
 
@@ -163,7 +174,7 @@ docker run -d \
   ghcr.io/costantinoai/bluesky-tracker:latest
 ```
 
-### From Source
+### From Source (Docker)
 
 ```bash
 git clone https://github.com/costantinoai/bluesky-tracker.git
@@ -172,6 +183,48 @@ cp .env.example .env
 nano .env  # Add your handle and app password
 docker compose up -d --build
 ```
+
+### Pip Install (Alternative)
+
+**For advanced users who prefer manual setup without Docker.**
+
+**Limitations:**
+- No automatic scheduler (requires manual cron setup)
+- No container isolation or resource limits
+- Manual dependency management
+- Not recommended for production use
+
+```bash
+# Clone repository
+git clone https://github.com/costantinoai/bluesky-tracker.git
+cd bluesky-tracker
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure
+cp .env.example .env
+nano .env  # Add your handle and app password
+
+# Create data directory
+mkdir -p data
+
+# Run application
+python app.py
+```
+
+**Access:** http://localhost:8095/report
+
+**Manual collection:**
+```bash
+python collector.py  # Run this daily via cron/task scheduler
+```
+
+**Note:** Docker method is strongly recommended for ease of use, automatic scheduling, and better isolation.
 
 ---
 
