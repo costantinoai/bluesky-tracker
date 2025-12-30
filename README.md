@@ -84,26 +84,29 @@ See [portainer-stack.yml](portainer-stack.yml) for a ready-to-use template.
 
 ---
 
-## 🔐 Authentication Notice
+## 🔐 Authentication Required
 
-**IMPORTANT: App password is OPTIONAL and NOT REQUIRED for most features!**
+**IMPORTANT: A Bluesky app password is REQUIRED to run this tracker.**
 
-This tracker works WITHOUT authentication for:
-- Public profile analytics
-- Follower/following counts
-- Public post engagement metrics
-- Most dashboard features
+The tracker needs authentication to:
+- Access your follower/following lists
+- Track unfollowers and new followers
+- Monitor post engagement metrics
+- Retrieve notification data
 
-Authentication is ONLY needed for:
-- Private/protected accounts
-- Detailed notification tracking
-- Some advanced engagement metrics
+**How to get an app password:**
+1. Go to [Bluesky Settings → App Passwords](https://bsky.app/settings/app-passwords)
+2. Click "Add App Password"
+3. Give it a name (e.g., "Analytics Tracker")
+4. Copy the generated password
+5. Add it to your `.env` file as `BLUESKY_APP_PASSWORD`
 
 **Privacy & Security:**
+- App passwords are MORE secure than your main password
+- They can be revoked anytime without changing your main password
+- Your password is stored ONLY in your local `.env` file (never tracked in git)
+- It is used ONLY to authenticate with Bluesky's official API
 - Your password is NEVER shared with any external provider
-- It is stored ONLY in your local `.env` file (never tracked in git)
-- It is used ONLY by this tool to authenticate with Bluesky's official API
-- You can run this tool completely password-free for public accounts
 
 See `.env.example` for configuration details.
 
@@ -351,19 +354,19 @@ All support `?days=N` parameter:
 **Quick Start:**
 1. Copy `.env.example` to `.env`
 2. Set your `BLUESKY_HANDLE`
-3. (Optional) Set `BLUESKY_APP_PASSWORD` only if needed
+3. Set your `BLUESKY_APP_PASSWORD` (required - see [Authentication](#-authentication-required))
 4. Adjust `PORT` and `TZ` if desired
 
 **Example .env file:**
 ```bash
 BLUESKY_HANDLE=your-handle.bsky.social
-BLUESKY_APP_PASSWORD=        # OPTIONAL - leave empty for public accounts
+BLUESKY_APP_PASSWORD=your-app-password-here
 PORT=8095
 DATABASE_PATH=/app/data/bluesky.db
 TZ=Europe/Brussels
 ```
 
-**Note:** The app password is optional and only needed for private accounts or advanced features. See the Authentication Notice section above for details.
+**Note:** Get your app password at [Bluesky Settings → App Passwords](https://bsky.app/settings/app-passwords).
 
 ### Scheduled Collection
 - **Time**: 6:00 AM Europe/Brussels
@@ -459,7 +462,7 @@ cd bluesky-tracker
 # Create your configuration file
 cp .env.example .env
 
-# Edit .env with your Bluesky handle (and optionally app password)
+# Edit .env with your Bluesky handle and app password (required)
 nano .env  # or use your preferred editor
 ```
 
