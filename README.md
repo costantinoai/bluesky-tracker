@@ -28,6 +28,47 @@ curl -sSL https://raw.githubusercontent.com/costantinoai/bluesky-tracker/main/se
 
 **Access your dashboard:** http://localhost:8095/report
 
+---
+
+## 📸 Screenshots
+
+<details open>
+<summary><b>Dashboard Overview</b></summary>
+
+![Dashboard Overview](.github/screenshots/dashboard-overview.png)
+*Main dashboard showing follower/following counts, mutual follows, unfollowers, and key metrics*
+</details>
+
+<details>
+<summary><b>Historical Analytics & Engagement Timeline</b></summary>
+
+![Analytics Timeline](.github/screenshots/analytics-timeline.png)
+*Track engagement trends over time with interactive charts for likes, reposts, replies, quotes, and bookmarks*
+</details>
+
+<details>
+<summary><b>Top Posts by Engagement</b></summary>
+
+![Top Posts](.github/screenshots/top-posts.png)
+*View your most popular posts with full text, engagement metrics (likes, reposts, replies, quotes, bookmarks), and clickable links to Bluesky*
+</details>
+
+<details>
+<summary><b>Unfollowers & Hidden Accounts</b></summary>
+
+![Unfollowers & Hidden](.github/screenshots/unfollowers-hidden.png)
+*Track who unfollowed you and analyze hidden accounts (blocked, deactivated, or suspended users)*
+</details>
+
+<details>
+<summary><b>Network Lists</b></summary>
+
+![Network Lists](.github/screenshots/network-lists.png)
+*Browse mutual follows, non-followers (you follow but they don't follow back), and followers-only lists*
+</details>
+
+---
+
 ### Alternative Installation Methods
 
 <details>
