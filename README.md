@@ -334,22 +334,6 @@ See [examples/](examples/) directory for configurations.
 
 ---
 
-## Development
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
-
-**Running tests:**
-```bash
-pytest tests/
-```
-
-**Test coverage:**
-```bash
-pytest tests/ --cov=. --cov-report=html
-```
-
----
-
 ## Platform Support
 
 | Platform | Architecture | Status |
@@ -378,12 +362,6 @@ See [SECURITY.md](SECURITY.md) for detailed security information.
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
-
----
-
-## Contributing
-
-Contributions welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
