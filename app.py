@@ -125,6 +125,75 @@ def api_followers_only():
         return jsonify({"error": "Internal error"}), 500
 
 
+@app.route("/api/top-posts")
+def api_top_posts():
+    """Top posts by engagement, filtered by days"""
+    try:
+        days = int(request.args.get("days", 30))
+        limit = int(request.args.get("limit", 10))
+
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT post_uri, post_text, like_count, repost_count, reply_count, quote_count,
+                       bookmark_count, created_at, indirect_likes, indirect_reposts, indirect_replies, indirect_bookmarks
+                FROM post_engagement
+                WHERE (post_uri, collection_date) IN (
+                    SELECT post_uri, MAX(collection_date)
+                    FROM post_engagement
+                    GROUP BY post_uri
+                )
+                AND DATE(created_at) >= date('now', '-' || ? || ' days')
+                ORDER BY (like_count + repost_count * 2 + reply_count * 3 + bookmark_count * 2 +
+                         COALESCE(indirect_likes, 0) + COALESCE(indirect_reposts, 0) * 2 +
+                         COALESCE(indirect_replies, 0) * 3 + COALESCE(indirect_bookmarks, 0) * 2) DESC
+                LIMIT ?
+            """,
+                (days, limit),
+            )
+            posts = []
+            for row in cursor.fetchall():
+                posts.append(
+                    {
+                        "uri": row[0],
+                        "text": row[1],
+                        "likes": row[2],
+                        "reposts": row[3],
+                        "replies": row[4],
+                        "quotes": row[5],
+                        "bookmarks": row[6],
+                        "created_at": row[7],
+                        "indirect_likes": row[8] or 0,
+                        "indirect_reposts": row[9] or 0,
+                        "indirect_replies": row[10] or 0,
+                        "indirect_bookmarks": row[11] or 0,
+                    }
+                )
+
+        api_requests.labels(endpoint="/api/top-posts", status="success").inc()
+        return jsonify({"posts": posts, "days": days, "count": len(posts)})
+    except Exception as e:
+        logger.error(f"/api/top-posts error: {e}")
+        api_requests.labels(endpoint="/api/top-posts", status="error").inc()
+        return jsonify({"error": "Internal error"}), 500
+
+
+@app.route("/api/top-interactors")
+def api_top_interactors():
+    """Top interactors filtered by days"""
+    try:
+        days = int(request.args.get("days", 30))
+        limit = int(request.args.get("limit", 20))
+        interactors = db.get_top_interactors(days=days, limit=limit)
+        api_requests.labels(endpoint="/api/top-interactors", status="success").inc()
+        return jsonify({"interactors": interactors, "days": days, "count": len(interactors)})
+    except Exception as e:
+        logger.error(f"/api/top-interactors error: {e}")
+        api_requests.labels(endpoint="/api/top-interactors", status="error").inc()
+        return jsonify({"error": "Internal error"}), 500
+
+
 @app.route("/api/collect", methods=["POST"])
 def api_collect():
     """Trigger manual data collection"""
@@ -462,6 +531,7 @@ def api_engagement_timeline():
         with db.get_connection() as conn:
             cursor = conn.cursor()
 
+            # Two-part query: initial engagement (by post date) + deltas (by collection date)
             cursor.execute(
                 """
                 SELECT
@@ -472,12 +542,9 @@ def api_engagement_timeline():
                     SUM(total_quotes) as quotes,
                     SUM(total_bookmarks) as bookmarks
                 FROM (
+                    -- Part 1: Initial engagement from first collection -> use post creation date
                     SELECT
-                        CASE
-                            WHEN pe.collection_date = (SELECT MIN(collection_date) FROM post_engagement)
-                            THEN DATE(pe.created_at)
-                            ELSE pe.collection_date
-                        END as engagement_date,
+                        DATE(pe.created_at) as engagement_date,
                         pe.like_count + COALESCE(pe.indirect_likes, 0) as total_likes,
                         pe.repost_count + COALESCE(pe.indirect_reposts, 0) as total_reposts,
                         pe.reply_count + COALESCE(pe.indirect_replies, 0) as total_replies,
@@ -485,15 +552,44 @@ def api_engagement_timeline():
                         pe.bookmark_count + COALESCE(pe.indirect_bookmarks, 0) as total_bookmarks
                     FROM post_engagement pe
                     WHERE pe.created_at IS NOT NULL
-                    AND (pe.post_uri, pe.collection_date) IN (
-                        SELECT post_uri, MAX(collection_date)
-                        FROM post_engagement
-                        GROUP BY post_uri
+                    AND pe.collection_date = (
+                        SELECT MIN(pe2.collection_date)
+                        FROM post_engagement pe2
+                        WHERE pe2.post_uri = pe.post_uri
+                    )
+
+                    UNION ALL
+
+                    -- Part 2: Engagement deltas from subsequent collections -> use collection date
+                    SELECT
+                        curr.collection_date as engagement_date,
+                        MAX(0, (curr.like_count + COALESCE(curr.indirect_likes, 0)) -
+                            (prev.like_count + COALESCE(prev.indirect_likes, 0))) as total_likes,
+                        MAX(0, (curr.repost_count + COALESCE(curr.indirect_reposts, 0)) -
+                            (prev.repost_count + COALESCE(prev.indirect_reposts, 0))) as total_reposts,
+                        MAX(0, (curr.reply_count + COALESCE(curr.indirect_replies, 0)) -
+                            (prev.reply_count + COALESCE(prev.indirect_replies, 0))) as total_replies,
+                        MAX(0, curr.quote_count - prev.quote_count) as total_quotes,
+                        MAX(0, (curr.bookmark_count + COALESCE(curr.indirect_bookmarks, 0)) -
+                            (prev.bookmark_count + COALESCE(prev.indirect_bookmarks, 0))) as total_bookmarks
+                    FROM post_engagement curr
+                    INNER JOIN post_engagement prev
+                        ON curr.post_uri = prev.post_uri
+                        AND prev.collection_date = (
+                            SELECT MAX(p.collection_date)
+                            FROM post_engagement p
+                            WHERE p.post_uri = curr.post_uri
+                            AND p.collection_date < curr.collection_date
+                        )
+                    WHERE curr.collection_date > (
+                        SELECT MIN(pe3.collection_date)
+                        FROM post_engagement pe3
+                        WHERE pe3.post_uri = curr.post_uri
                     )
                 ) subquery
+                WHERE engagement_date >= date('now', '-' || ? || ' days')
                 GROUP BY engagement_date
                 ORDER BY engagement_date ASC
-                LIMIT ?
             """,
                 (days,),
             )
@@ -540,32 +636,32 @@ def api_engagement_timeline():
 
 @app.route("/api/graphs/posting-frequency")
 def api_posting_frequency():
-    """Posts per day"""
+    """Posts per day - uses same date range as engagement-timeline for aligned x-axis"""
     try:
         days = int(request.args.get("days", 30))
 
         with db.get_connection() as conn:
             cursor = conn.cursor()
 
+            # Use date-based filtering to align with engagement-timeline x-axis
             cursor.execute(
                 """
                 SELECT DATE(created_at) as post_date, COUNT(*) as post_count
                 FROM post_engagement
                 WHERE created_at IS NOT NULL
+                AND DATE(created_at) >= date('now', '-' || ? || ' days')
                 AND (post_uri, collection_date) IN (
                     SELECT post_uri, MAX(collection_date)
                     FROM post_engagement
                     GROUP BY post_uri
                 )
                 GROUP BY DATE(created_at)
-                ORDER BY collection_date DESC
-                LIMIT ?
+                ORDER BY post_date ASC
             """,
                 (days,),
             )
 
             rows = cursor.fetchall()
-            rows = list(reversed(rows))
 
             data = {
                 "dates": [row[0] for row in rows],
@@ -587,31 +683,72 @@ def api_posting_frequency():
 
 @app.route("/api/graphs/engagement-breakdown")
 def api_engagement_breakdown():
-    """Total engagement by type (for pie chart)"""
+    """Engagement CHANGE by type for the time period (for pie chart)"""
     try:
         days = int(request.args.get("days", 30))
 
         with db.get_connection() as conn:
             cursor = conn.cursor()
 
-            # Get totals for the time period - aggregate directly from post_engagement
+            # Calculate engagement delta within the time period
+            # This sums up:
+            # 1. Initial engagement from posts first collected in this period (from created_at)
+            # 2. Delta engagement from subsequent collections in this period
             cursor.execute(
                 """
                 SELECT
-                    SUM(like_count + indirect_likes) as likes,
-                    SUM(repost_count + indirect_reposts) as reposts,
-                    SUM(reply_count + indirect_replies) as replies,
-                    SUM(quote_count) as quotes,
-                    SUM(bookmark_count + indirect_bookmarks) as bookmarks
-                FROM post_engagement
-                WHERE collection_date >= date('now', '-' || ? || ' days')
-                AND (post_uri, collection_date) IN (
-                    SELECT post_uri, MAX(collection_date)
-                    FROM post_engagement
-                    GROUP BY post_uri
-                )
+                    SUM(total_likes) as likes,
+                    SUM(total_reposts) as reposts,
+                    SUM(total_replies) as replies,
+                    SUM(total_quotes) as quotes,
+                    SUM(total_bookmarks) as bookmarks
+                FROM (
+                    -- Part 1: Initial engagement from first collection of each post
+                    SELECT
+                        pe.like_count + COALESCE(pe.indirect_likes, 0) as total_likes,
+                        pe.repost_count + COALESCE(pe.indirect_reposts, 0) as total_reposts,
+                        pe.reply_count + COALESCE(pe.indirect_replies, 0) as total_replies,
+                        pe.quote_count as total_quotes,
+                        pe.bookmark_count + COALESCE(pe.indirect_bookmarks, 0) as total_bookmarks
+                    FROM post_engagement pe
+                    WHERE pe.created_at IS NOT NULL
+                    AND DATE(pe.created_at) >= date('now', '-' || ? || ' days')
+                    AND pe.collection_date = (
+                        SELECT MIN(pe2.collection_date)
+                        FROM post_engagement pe2
+                        WHERE pe2.post_uri = pe.post_uri
+                    )
+
+                    UNION ALL
+
+                    -- Part 2: Engagement deltas from subsequent collections
+                    SELECT
+                        MAX(0, (curr.like_count + COALESCE(curr.indirect_likes, 0)) -
+                               (prev.like_count + COALESCE(prev.indirect_likes, 0))) as total_likes,
+                        MAX(0, (curr.repost_count + COALESCE(curr.indirect_reposts, 0)) -
+                               (prev.repost_count + COALESCE(prev.indirect_reposts, 0))) as total_reposts,
+                        MAX(0, (curr.reply_count + COALESCE(curr.indirect_replies, 0)) -
+                               (prev.reply_count + COALESCE(prev.indirect_replies, 0))) as total_replies,
+                        MAX(0, curr.quote_count - prev.quote_count) as total_quotes,
+                        MAX(0, (curr.bookmark_count + COALESCE(curr.indirect_bookmarks, 0)) -
+                               (prev.bookmark_count + COALESCE(prev.indirect_bookmarks, 0))) as total_bookmarks
+                    FROM post_engagement curr
+                    INNER JOIN post_engagement prev ON curr.post_uri = prev.post_uri
+                        AND prev.collection_date = (
+                            SELECT MAX(p.collection_date)
+                            FROM post_engagement p
+                            WHERE p.post_uri = curr.post_uri
+                            AND p.collection_date < curr.collection_date
+                        )
+                    WHERE curr.collection_date >= date('now', '-' || ? || ' days')
+                    AND curr.collection_date > (
+                        SELECT MIN(pe3.collection_date)
+                        FROM post_engagement pe3
+                        WHERE pe3.post_uri = curr.post_uri
+                    )
+                ) subquery
             """,
-                (days,),
+                (days, days),
             )
 
             row = cursor.fetchone()
@@ -642,7 +779,7 @@ def api_engagement_breakdown():
 
 @app.route("/api/graphs/stats-summary")
 def api_stats_summary():
-    """Summary statistics for time period"""
+    """Summary statistics for time period - shows engagement RECEIVED in the period"""
     try:
         days = int(request.args.get("days", 30))
 
@@ -664,27 +801,84 @@ def api_stats_summary():
 
             metrics_row = cursor.fetchone()
 
-            # Get engagement totals - aggregate directly from post_engagement
+            # Count posts CREATED in the time period
             cursor.execute(
                 """
-                SELECT
-                    COUNT(DISTINCT post_uri) as total_posts,
-                    SUM(like_count + repost_count + reply_count + quote_count + bookmark_count) as total_engagement,
-                    SUM(indirect_likes + indirect_reposts + indirect_replies + indirect_bookmarks) as total_indirect
+                SELECT COUNT(DISTINCT post_uri) as total_posts
                 FROM post_engagement
-                WHERE collection_date >= date('now', '-' || ? || ' days')
-                AND (post_uri, collection_date) IN (
-                    SELECT post_uri, MAX(collection_date)
-                    FROM post_engagement
-                    GROUP BY post_uri
-                )
+                WHERE created_at IS NOT NULL
+                AND DATE(created_at) >= date('now', '-' || ? || ' days')
             """,
                 (days,),
             )
+            posts_row = cursor.fetchone()
+            total_posts = posts_row[0] or 0
 
-            engagement_row = cursor.fetchone()
-            total_posts = engagement_row[0] or 0
-            total_engagement = (engagement_row[1] or 0) + (engagement_row[2] or 0)
+            # Calculate total engagement RECEIVED in the time period using delta approach
+            cursor.execute(
+                """
+                SELECT
+                    SUM(total_likes) as likes,
+                    SUM(total_reposts) as reposts,
+                    SUM(total_replies) as replies,
+                    SUM(total_quotes) as quotes,
+                    SUM(total_bookmarks) as bookmarks
+                FROM (
+                    -- Part 1: Initial engagement from posts first collected in this period
+                    SELECT
+                        pe.like_count + COALESCE(pe.indirect_likes, 0) as total_likes,
+                        pe.repost_count + COALESCE(pe.indirect_reposts, 0) as total_reposts,
+                        pe.reply_count + COALESCE(pe.indirect_replies, 0) as total_replies,
+                        pe.quote_count as total_quotes,
+                        pe.bookmark_count + COALESCE(pe.indirect_bookmarks, 0) as total_bookmarks
+                    FROM post_engagement pe
+                    WHERE pe.created_at IS NOT NULL
+                    AND DATE(pe.created_at) >= date('now', '-' || ? || ' days')
+                    AND pe.collection_date = (
+                        SELECT MIN(pe2.collection_date)
+                        FROM post_engagement pe2
+                        WHERE pe2.post_uri = pe.post_uri
+                    )
+
+                    UNION ALL
+
+                    -- Part 2: Engagement deltas from subsequent collections in this period
+                    SELECT
+                        MAX(0, (curr.like_count + COALESCE(curr.indirect_likes, 0)) -
+                               (prev.like_count + COALESCE(prev.indirect_likes, 0))) as total_likes,
+                        MAX(0, (curr.repost_count + COALESCE(curr.indirect_reposts, 0)) -
+                               (prev.repost_count + COALESCE(prev.indirect_reposts, 0))) as total_reposts,
+                        MAX(0, (curr.reply_count + COALESCE(curr.indirect_replies, 0)) -
+                               (prev.reply_count + COALESCE(prev.indirect_replies, 0))) as total_replies,
+                        MAX(0, curr.quote_count - prev.quote_count) as total_quotes,
+                        MAX(0, (curr.bookmark_count + COALESCE(curr.indirect_bookmarks, 0)) -
+                               (prev.bookmark_count + COALESCE(prev.indirect_bookmarks, 0))) as total_bookmarks
+                    FROM post_engagement curr
+                    INNER JOIN post_engagement prev ON curr.post_uri = prev.post_uri
+                        AND prev.collection_date = (
+                            SELECT MAX(p.collection_date)
+                            FROM post_engagement p
+                            WHERE p.post_uri = curr.post_uri
+                            AND p.collection_date < curr.collection_date
+                        )
+                    WHERE curr.collection_date >= date('now', '-' || ? || ' days')
+                    AND curr.collection_date > (
+                        SELECT MIN(pe3.collection_date)
+                        FROM post_engagement pe3
+                        WHERE pe3.post_uri = curr.post_uri
+                    )
+                ) subquery
+            """,
+                (days, days),
+            )
+
+            eng_row = cursor.fetchone()
+            current_likes = eng_row[0] or 0
+            current_reposts = eng_row[1] or 0
+            current_replies = eng_row[2] or 0
+            current_quotes = eng_row[3] or 0
+            current_bookmarks = eng_row[4] or 0
+            total_engagement = current_likes + current_reposts + current_replies + current_quotes + current_bookmarks
             avg_engagement = (
                 round(total_engagement / total_posts, 1) if total_posts > 0 else 0
             )
@@ -696,6 +890,10 @@ def api_stats_summary():
                 "totalEngagement": total_engagement,
                 "avgEngagementPerPost": avg_engagement,
                 "totalPosts": total_posts,
+                "likesChange": current_likes,
+                "repostsQuotesChange": current_reposts + current_quotes,
+                "repliesChange": current_replies,
+                "savesChange": current_bookmarks,
             }
 
         api_requests.labels(

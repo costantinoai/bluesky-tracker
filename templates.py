@@ -247,14 +247,25 @@ def get_report_html(data):
                 <div class="stat-change">Follow you only</div>
             </div>
         </div>
+
+        <!-- Global Time Filter -->
+        <div class="global-time-filter" style="display: flex; justify-content: center; align-items: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; padding: 16px; background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <span style="font-size: 14px; color: #666; font-weight: 500;">Time Range:</span>
+            <button class="time-range-btn" data-days="1" onclick="changeGlobalTimeRange(1)">1D</button>
+            <button class="time-range-btn" data-days="7" onclick="changeGlobalTimeRange(7)">7D</button>
+            <button class="time-range-btn active" data-days="30" onclick="changeGlobalTimeRange(30)">30D</button>
+            <button class="time-range-btn" data-days="90" onclick="changeGlobalTimeRange(90)">90D</button>
+            <button class="time-range-btn" data-days="365" onclick="changeGlobalTimeRange(365)">1Y</button>
+            <button class="time-range-btn" data-days="999999" onclick="changeGlobalTimeRange(999999)">All</button>
+        </div>
 """
 
     html += """
 <!-- HISTORICAL ANALYTICS SECTION -->
 <!-- ================================================================ -->
 
-<div class="section-card" style="margin-top: 32px;">
-    <div class="section-header">
+<div class="section-card" style="margin-top: 16px;">
+    <div class="section-header" onclick="toggleSection(this)">
         <div class="section-title">
             <div class="section-icon">📈</div>
             <div class="section-text">
@@ -267,54 +278,53 @@ def get_report_html(data):
         </svg>
     </div>
 
-    <div class="section-content expanded" style="display: block;">
+    <div class="section-content expanded">
         <div class="section-body">
-            <!-- Time Range Selector -->
-            <div style="display: flex; justify-content: center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;">
-                <button class="time-range-btn active" data-days="1" onclick="changeTimeRange(1)">1D</button>
-                <button class="time-range-btn" data-days="7" onclick="changeTimeRange(7)">7D</button>
-                <button class="time-range-btn" data-days="30" onclick="changeTimeRange(30)">30D</button>
-                <button class="time-range-btn" data-days="90" onclick="changeTimeRange(90)">90D</button>
-                <button class="time-range-btn" data-days="365" onclick="changeTimeRange(365)">1Y</button>
-                <button class="time-range-btn" data-days="999999" onclick="changeTimeRange(999999)">All</button>
-            </div>
-
             <!-- Stats Summary Cards -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 24px;">
                 <div style="background: #E3F2FD; border-radius: 12px; padding: 16px; text-align: center;">
                     <div style="font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 4px;">Days Tracked</div>
-                    <div id="stat-days-tracked" style="font-size: 32px; font-weight: 700; color: #1976D2;">-</div>
+                    <div id="stat-days-tracked" style="font-size: 28px; font-weight: 700; color: #1976D2;">-</div>
                 </div>
                 <div style="background: #E8F5E9; border-radius: 12px; padding: 16px; text-align: center;">
                     <div style="font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 4px;">Follower Change</div>
-                    <div id="stat-follower-change" style="font-size: 32px; font-weight: 700; color: #388E3C;">-</div>
+                    <div id="stat-follower-change" style="font-size: 28px; font-weight: 700; color: #388E3C;">-</div>
                 </div>
                 <div style="background: #FFF3E0; border-radius: 12px; padding: 16px; text-align: center;">
                     <div style="font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 4px;">Total Posts</div>
-                    <div id="stat-total-posts" style="font-size: 32px; font-weight: 700; color: #F57C00;">-</div>
+                    <div id="stat-total-posts" style="font-size: 28px; font-weight: 700; color: #F57C00;">-</div>
                 </div>
                 <div style="background: #F3E5F5; border-radius: 12px; padding: 16px; text-align: center;">
                     <div style="font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 4px;">Avg Engagement</div>
-                    <div id="stat-avg-engagement" style="font-size: 32px; font-weight: 700; color: #7B1FA2;">-</div>
+                    <div id="stat-avg-engagement" style="font-size: 28px; font-weight: 700; color: #7B1FA2;">-</div>
+                </div>
+                <div style="background: #FFEBEE; border-radius: 12px; padding: 16px; text-align: center;">
+                    <div style="font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 4px;">Likes</div>
+                    <div id="stat-likes-change" style="font-size: 28px; font-weight: 700; color: #D32F2F;">-</div>
+                </div>
+                <div style="background: #E0F7FA; border-radius: 12px; padding: 16px; text-align: center;">
+                    <div style="font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 4px;">Reposts/Quotes</div>
+                    <div id="stat-reposts-quotes-change" style="font-size: 28px; font-weight: 700; color: #00838F;">-</div>
+                </div>
+                <div style="background: #FFF8E1; border-radius: 12px; padding: 16px; text-align: center;">
+                    <div style="font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 4px;">Replies</div>
+                    <div id="stat-replies-change" style="font-size: 28px; font-weight: 700; color: #FF8F00;">-</div>
+                </div>
+                <div style="background: #E8EAF6; border-radius: 12px; padding: 16px; text-align: center;">
+                    <div style="font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 4px;">Saves</div>
+                    <div id="stat-saves-change" style="font-size: 28px; font-weight: 700; color: #3949AB;">-</div>
                 </div>
             </div>
 
             <!-- Graphs Grid -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 24px;">
 
+                <!-- Row 1: Network Growth (left), Engagement Timeline (right) -->
                 <!-- Follower Growth Chart -->
                 <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 350px;">
                     <h4 style="margin: 0 0 16px 0; color: #1C1B1F; font-size: 16px; font-weight: 600;">Network Growth</h4>
                     <div style="position: relative; height: 300px; width: 100%;">
                         <canvas id="followerGrowthChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- Net Growth Chart -->
-                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 350px;">
-                    <h4 style="margin: 0 0 16px 0; color: #1C1B1F; font-size: 16px; font-weight: 600;">Daily Net Change</h4>
-                    <div style="position: relative; height: 300px; width: 100%;">
-                        <canvas id="netGrowthChart"></canvas>
                     </div>
                 </div>
 
@@ -342,19 +352,20 @@ def get_report_html(data):
                     </div>
                 </div>
 
-                <!-- Posting Frequency Chart -->
-                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 350px;">
-                    <h4 style="margin: 0 0 16px 0; color: #1C1B1F; font-size: 16px; font-weight: 600;">Posting Activity</h4>
-                    <div style="position: relative; height: 300px; width: 100%;">
-                        <canvas id="postingFrequencyChart"></canvas>
-                    </div>
-                </div>
-
+                <!-- Row 2: Engagement Distribution (left), Posting Activity (right) -->
                 <!-- Engagement Breakdown Chart -->
                 <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 350px;">
                     <h4 style="margin: 0 0 16px 0; color: #1C1B1F; font-size: 16px; font-weight: 600;">Engagement Distribution</h4>
                     <div style="position: relative; height: 300px; width: 100%;">
                         <canvas id="engagementBreakdownChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Posting Frequency Chart (same x-axis as Engagement Timeline) -->
+                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 350px;">
+                    <h4 style="margin: 0 0 16px 0; color: #1C1B1F; font-size: 16px; font-weight: 600;">Posting Activity</h4>
+                    <div style="position: relative; height: 300px; width: 100%;">
+                        <canvas id="postingFrequencyChart"></canvas>
                     </div>
                 </div>
 
@@ -390,172 +401,56 @@ def get_report_html(data):
 
     """
 
-    # Top Posts Section
-    if top_posts:
-        html += f"""
-        <div class="section-card">
+    # Top Posts Section (AJAX-loaded)
+    html += f"""
+        <div class="section-card" id="top-posts-section">
             <div class="section-header" onclick="toggleSection(this)">
                 <div class="section-title">
                     <div class="section-icon">📊</div>
                     <div class="section-text">
                         <h3>Top Posts by Engagement</h3>
-                        <p>Your most popular posts (original content only)</p>
+                        <p id="top-posts-subtitle">Your most popular posts (original content only)</p>
                     </div>
                 </div>
-                <span class="section-badge">{len(top_posts)}</span>
+                <span class="section-badge" id="top-posts-count">-</span>
                 <svg class="section-chevron" fill="currentColor" viewBox="0 0 20 20">
                     <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
                 </svg>
             </div>
             <div class="section-content">
-                <div class="section-body">
-"""
-        for post in top_posts[:10]:
-            # Calculate engagement score (including indirect engagement from quote posts)
-            direct_score = (
-                post.get("likes", 0)
-                + post.get("reposts", 0) * 2
-                + post.get("replies", 0) * 3
-                + post.get("bookmarks", 0) * 2
-            )
-            indirect_score = (
-                post.get("indirect_likes", 0)
-                + post.get("indirect_reposts", 0) * 2
-                + post.get("indirect_replies", 0) * 3
-                + post.get("indirect_bookmarks", 0) * 2
-            ) * 0.5
-            engagement_score = int(direct_score + indirect_score)
-
-            # Extract post ID from URI
-            post_uri = post.get("uri", "")
-            post_id = post_uri.split("/")[-1] if post_uri else ""
-            post_url = (
-                f"https://bsky.app/profile/{bluesky_handle}/post/{post_id}"
-                if post_id
-                else "#"
-            )
-
-            # Escape quotes in post text
-            post_text = post.get("text", "").replace("'", "\\'").replace('"', "&quot;")
-
-            # Format timestamp
-            created_at = post.get("created_at", "")
-            if created_at:
-                from datetime import datetime
-
-                try:
-                    dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-                    formatted_date = dt.strftime("%b %d, %Y at %I:%M %p")
-                except:
-                    formatted_date = created_at
-            else:
-                formatted_date = "Unknown date"
-
-            # Pre-calculate indirect engagement values (to avoid nested f-strings)
-            indirect_likes = post.get("indirect_likes", 0)
-            indirect_reposts = post.get("indirect_reposts", 0)
-            indirect_replies = post.get("indirect_replies", 0)
-            indirect_bookmarks = post.get("indirect_bookmarks", 0)
-            total_indirect = (
-                indirect_likes
-                + indirect_reposts
-                + indirect_replies
-                + indirect_bookmarks
-            )
-
-            # Build indirect engagement badge HTML (if there's indirect engagement)
-            indirect_badge = ""
-            if total_indirect > 0:
-                indirect_badge = f'<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #E1F5FE; border-radius: 12px; font-size: 13px;" title="Indirect Engagement: {indirect_likes} likes, {indirect_reposts} reposts, {indirect_replies} replies, {indirect_bookmarks} bookmarks on quote posts"><span class="material-icons" style="font-size: 16px; color: #0277BD;">add_circle</span><span style="font-weight: 500; color: #0277BD;">+{total_indirect} indirect</span></div>'
-
-            # Generate profile URL for avatar (generic Bluesky profile)
-            profile_url_for_avatar = f"https://bsky.app/profile/{bluesky_handle}"
-
-            html += f"""
-                    <div class="post-card" onclick="window.open('{post_url}', '_blank')" style="background: white; border: 1px solid #E0E0E0; border-radius: 12px; padding: 0; margin-bottom: 16px; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden;">
-                        <!-- Post Header -->
-                        <div style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px 16px;">
-                            <div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #1976D2, #0288D1); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 20px; flex-shrink: 0;">{bluesky_handle[0].upper()}</div>
-                            <div style="flex: 1; min-width: 0;">
-                                <div style="font-weight: 600; font-size: 15px; color: #1C1B1F;">@{bluesky_handle}</div>
-                                <div style="font-size: 14px; color: #666;">Tracked Account</div>
-                            </div>
-                            <div style="font-size: 13px; color: #999;">{formatted_date}</div>
-                        </div>
-
-                        <!-- Post Content -->
-                        <div style="padding: 0 16px 12px 16px;">
-                            <div style="font-size: 15px; color: #1C1B1F; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;">{post_text}</div>
-                        </div>
-
-                        <!-- Metrics Bar -->
-                        <div style="display: flex; align-items: center; gap: 20px; padding: 12px 16px; border-top: 1px solid #E0E0E0; background: #FAFAFA; font-size: 14px;">
-                            <div style="display: inline-flex; align-items: center; gap: 6px;" title="Likes">
-                                <span class="material-icons" style="font-size: 18px; color: #1976D2;">favorite</span>
-                                <span style="font-weight: 500;">{post.get('likes', 0)}</span>
-                            </div>
-                            <div style="display: inline-flex; align-items: center; gap: 6px;" title="Reposts">
-                                <span class="material-icons" style="font-size: 18px; color: #1976D2;">repeat</span>
-                                <span style="font-weight: 500;">{post.get('reposts', 0)}</span>
-                            </div>
-                            <div style="display: inline-flex; align-items: center; gap: 6px;" title="Replies">
-                                <span class="material-icons" style="font-size: 18px; color: #1976D2;">chat_bubble_outline</span>
-                                <span style="font-weight: 500;">{post.get('replies', 0)}</span>
-                            </div>
-                            <div style="display: inline-flex; align-items: center; gap: 6px;" title="Quotes">
-                                <span class="material-icons" style="font-size: 18px; color: #1976D2;">format_quote</span>
-                                <span style="font-weight: 500;">{post.get('quotes', 0)}</span>
-                            </div>
-                            <div style="display: inline-flex; align-items: center; gap: 6px;" title="Bookmarks/Saves">
-                                <span class="material-icons" style="font-size: 18px; color: #1976D2;">bookmark</span>
-                                <span style="font-weight: 500;">{post.get('bookmarks', 0)}</span>
-                            </div>
-                            {indirect_badge}
-                            <div style="display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-weight: 600; color: #1976D2; border-left: 1px solid #E0E0E0; padding-left: 20px;" title="Engagement Score: {engagement_score}&#10;Direct: {post.get('likes', 0)} likes + {post.get('reposts', 0)}×2 reposts + {post.get('replies', 0)}×3 replies + {post.get('bookmarks', 0)}×2 bookmarks = {int(direct_score)}&#10;Indirect (×0.5): {indirect_likes} likes + {indirect_reposts}×2 reposts + {indirect_replies}×3 replies + {indirect_bookmarks}×2 bookmarks = {int(indirect_score)}&#10;(Indirect = engagement on posts that quoted this post)">
-                                <span class="material-icons" style="font-size: 18px;">trending_up</span>
-                                <span>{engagement_score}</span>
-                            </div>
-                        </div>
+                <div class="section-body" id="top-posts-container">
+                    <div style="text-align: center; padding: 40px; color: #666;">
+                        <span class="material-icons" style="font-size: 48px; animation: spin 1s linear infinite;">sync</span>
+                        <p>Loading top posts...</p>
                     </div>
-"""
-        html += """
                 </div>
             </div>
         </div>
 """
 
-    # Unfollowers Section
-    unfollowers_body = ""
-    if unfollowers:
-        cards = "".join(
-            [
-                user_card(u, u.get("change_date", ""), True, i)
-                for i, u in enumerate(unfollowers)
-            ]
-        )
-        unfollowers_body = f'<div class="user-grid" id="unfollowers-grid">{cards}</div>'
-        if len(unfollowers) > 50:
-            unfollowers_body += f'<div class="show-more-container"><button class="show-more-btn" onclick="showMoreCards(\'unfollowers-grid\')">Show All {len(unfollowers)} Unfollowers</button></div>'
-    else:
-        unfollowers_body = '<div class="empty-state"><div class="empty-state-icon">🎉</div><h4>No unfollowers</h4></div>'
-
+    # Unfollowers Section (AJAX-loaded)
     html += f"""
-        <div class="section-card">
+        <div class="section-card" id="unfollowers-section">
             <div class="section-header" onclick="toggleSection(this)">
                 <div class="section-title">
                     <div class="section-icon">💔</div>
                     <div class="section-text">
                         <h3>Recent Unfollowers</h3>
-                        <p>People who unfollowed you in the last 30 days</p>
+                        <p id="unfollowers-subtitle">People who unfollowed you</p>
                     </div>
                 </div>
-                <span class="section-badge">{len(unfollowers)}</span>
+                <span class="section-badge" id="unfollowers-count">-</span>
                 <svg class="section-chevron" fill="currentColor" viewBox="0 0 20 20">
                     <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
                 </svg>
             </div>
             <div class="section-content">
-                <div class="section-body">{unfollowers_body}</div>
+                <div class="section-body" id="unfollowers-container">
+                    <div style="text-align: center; padding: 40px; color: #666;">
+                        <span class="material-icons" style="font-size: 48px; animation: spin 1s linear infinite;">sync</span>
+                        <p>Loading unfollowers...</p>
+                    </div>
+                </div>
             </div>
         </div>
 """
@@ -648,74 +543,27 @@ def get_report_html(data):
         </div>
 """
 
-    # Top Interactors Section
-    if top_interactors:
-        html += f"""
-        <div class="section-card">
+    # Top Interactors Section (AJAX-loaded)
+    html += f"""
+        <div class="section-card" id="top-interactors-section">
             <div class="section-header" onclick="toggleSection(this)">
                 <div class="section-title">
                     <div class="section-icon">👥</div>
                     <div class="section-text">
                         <h3>Top Interactors</h3>
-                        <p>People who engage most with your content</p>
+                        <p id="top-interactors-subtitle">People who engage most with your content</p>
                     </div>
                 </div>
-                <span class="section-badge">{len(top_interactors)}</span>
+                <span class="section-badge" id="top-interactors-count">-</span>
                 <svg class="section-chevron" fill="currentColor" viewBox="0 0 20 20">
                     <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
                 </svg>
             </div>
             <div class="section-content">
-                <div class="section-body">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
-"""
-
-        for interactor in top_interactors[:20]:
-            handle = interactor.get("handle", "")
-            display_name = interactor.get("display_name", handle)
-            avatar_url = interactor.get("avatar", "")
-            score = interactor.get("score", 0)
-            likes = interactor.get("likes", 0)
-            replies = interactor.get("replies", 0)
-            reposts = interactor.get("reposts", 0)
-            quotes = interactor.get("quotes", 0)
-            follows = interactor.get("follows", 0)
-
-            avatar_html = ""
-            if avatar_url and avatar_url.strip():
-                avatar_html = f'<div style="width: 56px; height: 56px;"><img src="{avatar_url}" alt="{display_name}" style="width: 56px; height: 56px; border-radius: 50%; object-fit: cover;" onerror="this.parentNode.style.display=&quot;none&quot;" loading="lazy"></div>'
-
-            profile_url = f"https://bsky.app/profile/{handle}"
-
-            badges_html = ""
-            if likes > 0:
-                badges_html += f'<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #E3F2FD; color: #1976D2;"><span class="material-icons" style="font-size: 14px;">favorite</span>{likes}</span>'
-            if replies > 0:
-                badges_html += f'<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #E3F2FD; color: #1976D2; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">chat_bubble</span>{replies}</span>'
-            if reposts > 0:
-                badges_html += f'<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #E1F5FE; color: #0288D1; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">repeat</span>{reposts}</span>'
-            if quotes > 0:
-                badges_html += f'<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #B3E5FC; color: #01579B; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">format_quote</span>{quotes}</span>'
-            if follows > 0:
-                badges_html += f'<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #BBDEFB; color: #1976D2; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">person_add</span>{follows}</span>'
-
-            html += f"""
-                        <div style="background: white; border: 1px solid #CAC4D0; border-radius: 12px; padding: 16px; display: flex; gap: 16px; transition: all 0.2s; cursor: pointer;" onclick="window.open('{profile_url}', '_blank')">
-                            {avatar_html}
-                            <div style="flex: 1;">
-                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                                    <div style="font-weight: 600; color: #1C1B1F; font-size: 15px;">{display_name}</div>
-                                    <div style="background: #1976D2; color: white; padding: 4px 12px; border-radius: 12px; font-size: 13px; font-weight: 600;">{score}</div>
-                                </div>
-                                <div style="color: #49454F; font-size: 14px; margin-bottom: 12px;">@{handle}</div>
-                                <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-                                    {badges_html}
-                                </div>
-                            </div>
-                        </div>
-"""
-
-        html += """
+                <div class="section-body" id="top-interactors-container">
+                    <div style="text-align: center; padding: 40px; color: #666;">
+                        <span class="material-icons" style="font-size: 48px; animation: spin 1s linear infinite;">sync</span>
+                        <p>Loading top interactors...</p>
                     </div>
                 </div>
             </div>
@@ -825,13 +673,6 @@ def get_report_html(data):
     html += """
     </div>
     <script>
-        function toggleSection(header) {
-            const content = header.nextElementSibling;
-            const chevron = header.querySelector('.section-chevron');
-            content.classList.toggle('expanded');
-            chevron.classList.toggle('expanded');
-        }
-
         function showMoreCards(gridId) {
             const grid = document.getElementById(gridId);
             const hiddenCards = grid.querySelectorAll('.user-card.hidden-card');
@@ -905,7 +746,7 @@ def get_report_html(data):
 // CHART.JS HISTORICAL ANALYTICS
 // ========================================================================
 
-let currentTimeRange = 999999;  // Default to "All" data
+let currentTimeRange = 30;  // Default to 30 days
 let chartInstances = {};
 // Store both daily and cumulative engagement data
 let engagementDataStore = {
@@ -1078,7 +919,7 @@ if (document.readyState === 'loading') {
     initCharts();
 }
 
-function changeTimeRange(days) {
+function changeGlobalTimeRange(days) {
     currentTimeRange = days;
 
     // Update button states
@@ -1091,15 +932,23 @@ function changeTimeRange(days) {
 
     // Update subtitle
     const subtitle = document.getElementById('analytics-subtitle');
-    if (days === 1) subtitle.textContent = 'Last 24 hours';
-    else if (days === 7) subtitle.textContent = 'Last 7 days';
-    else if (days === 30) subtitle.textContent = 'Last 30 days';
-    else if (days === 90) subtitle.textContent = 'Last 90 days';
-    else if (days === 365) subtitle.textContent = 'Last year';
-    else subtitle.textContent = 'All time';
+    const timeLabel = getTimeLabel(days);
+    if (subtitle) subtitle.textContent = timeLabel;
 
-    // Reload all graphs
+    // Reload all time-dependent sections
     loadAllGraphs(days);
+    loadTopPosts(days);
+    loadUnfollowers(days);
+    loadTopInteractors(days);
+}
+
+function getTimeLabel(days) {
+    if (days === 1) return 'Last 24 hours';
+    if (days === 7) return 'Last 7 days';
+    if (days === 30) return 'Last 30 days';
+    if (days === 90) return 'Last 90 days';
+    if (days === 365) return 'Last year';
+    return 'All time';
 }
 
 async function loadAllGraphs(days) {
@@ -1110,9 +959,6 @@ async function loadAllGraphs(days) {
 
         await loadFollowerGrowthChart(days);
         console.log('Follower growth chart loaded');
-
-        await loadNetGrowthChart(days);
-        console.log('Net growth chart loaded');
 
         await loadEngagementTimelineChart(days);
         console.log('Engagement timeline loaded');
@@ -1143,6 +989,17 @@ async function loadStatsSummary(days) {
 
         document.getElementById('stat-total-posts').textContent = data.totalPosts || '0';
         document.getElementById('stat-avg-engagement').textContent = (data.avgEngagementPerPost || 0).toFixed(1);
+
+        // Update new engagement change cards
+        const formatChange = (value, elem, positiveColor) => {
+            elem.textContent = value >= 0 ? `+${value}` : value;
+            elem.style.color = value >= 0 ? positiveColor : '#D32F2F';
+        };
+
+        formatChange(data.likesChange || 0, document.getElementById('stat-likes-change'), '#D32F2F');
+        formatChange(data.repostsQuotesChange || 0, document.getElementById('stat-reposts-quotes-change'), '#00838F');
+        formatChange(data.repliesChange || 0, document.getElementById('stat-replies-change'), '#FF8F00');
+        formatChange(data.savesChange || 0, document.getElementById('stat-saves-change'), '#3949AB');
 
     } catch (error) {
         console.error('Error loading stats summary:', error);
@@ -1183,19 +1040,19 @@ async function loadFollowerGrowthChart(days) {
                         borderWidth: 3,
                         fill: true,
                         tension: 0.4,
-                        pointRadius: 15,  // Make points visible
-                        pointHoverRadius: 20
+                        pointRadius: 4,
+                        pointHoverRadius: 6
                     },
                     {
                         label: 'Following',
                         data: data.following,
-                        borderColor: '#0288D1',
-                        backgroundColor: 'rgba(2, 136, 209, 0.1)',
+                        borderColor: '#FF9800',
+                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
                         borderWidth: 3,
                         fill: true,
                         tension: 0.4,
-                        pointRadius: 15,
-                        pointHoverRadius: 20
+                        pointRadius: 4,
+                        pointHoverRadius: 6
                     }
                 ]
             },
@@ -1229,68 +1086,6 @@ async function loadFollowerGrowthChart(days) {
 
     } catch (error) {
         console.error('Error loading follower growth chart:', error);
-    }
-}
-
-async function loadNetGrowthChart(days) {
-    try {
-        const response = await fetch(`/api/graphs/net-growth?days=${days}`);
-        const data = await response.json();
-
-        const ctx = document.getElementById('netGrowthChart').getContext('2d');
-
-        if (chartInstances.netGrowth) {
-            chartInstances.netGrowth.destroy();
-        }
-
-        // Handle empty data
-        if (!data.dates || data.dates.length === 0) {
-            ctx.fillStyle = '#999';
-            ctx.font = '14px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('No daily change data yet (need 2+ days)', ctx.canvas.width / 2, ctx.canvas.height / 2);
-            return;
-        }
-
-        // Color bars based on positive/negative
-        const followerColors = data.netFollowers.map(v => v >= 0 ? 'rgba(56, 142, 60, 0.8)' : 'rgba(211, 47, 47, 0.8)');
-
-        chartInstances.netGrowth = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: data.dates,
-                datasets: [
-                    {
-                        label: 'Net Followers',
-                        data: data.netFollowers,
-                        backgroundColor: followerColors,
-                        borderWidth: 0,
-                        barPercentage: 0.8
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'bottom'
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0
-                        }
-                    }
-                }
-            }
-        });
-
-    } catch (error) {
-        console.error('Error loading net growth chart:', error);
     }
 }
 
@@ -1520,6 +1315,208 @@ async function loadEngagementBreakdownChart(days) {
         console.error('Error loading engagement breakdown chart:', error);
     }
 }
+
+// ========================================================================
+// AJAX-LOADED SECTIONS
+// ========================================================================
+
+const blueskyHandle = '""" + bluesky_handle + """';
+
+async function loadTopPosts(days) {
+    const container = document.getElementById('top-posts-container');
+    const countBadge = document.getElementById('top-posts-count');
+    const subtitle = document.getElementById('top-posts-subtitle');
+
+    try {
+        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;"><span class="material-icons" style="font-size: 48px; animation: spin 1s linear infinite;">sync</span><p>Loading top posts...</p></div>';
+
+        const response = await fetch(`/api/top-posts?days=${days}`);
+        const data = await response.json();
+
+        countBadge.textContent = data.count || 0;
+        subtitle.textContent = `Your most popular posts (${getTimeLabel(days).toLowerCase()})`;
+
+        if (!data.posts || data.posts.length === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><h4>No posts in this time period</h4></div>';
+            return;
+        }
+
+        let html = '';
+        for (const post of data.posts) {
+            const directScore = (post.likes || 0) + (post.reposts || 0) * 2 + (post.replies || 0) * 3 + (post.bookmarks || 0) * 2;
+            const indirectScore = ((post.indirect_likes || 0) + (post.indirect_reposts || 0) * 2 + (post.indirect_replies || 0) * 3 + (post.indirect_bookmarks || 0) * 2) * 0.5;
+            const engagementScore = Math.round(directScore + indirectScore);
+
+            const postId = post.uri ? post.uri.split('/').pop() : '';
+            const postUrl = postId ? `https://bsky.app/profile/${blueskyHandle}/post/${postId}` : '#';
+            const postText = (post.text || '').replace(/'/g, "\\\\'").replace(/"/g, '&quot;');
+
+            let formattedDate = 'Unknown date';
+            if (post.created_at) {
+                try {
+                    const dt = new Date(post.created_at);
+                    formattedDate = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' at ' + dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                } catch (e) {
+                    formattedDate = post.created_at;
+                }
+            }
+
+            const totalIndirect = (post.indirect_likes || 0) + (post.indirect_reposts || 0) + (post.indirect_replies || 0) + (post.indirect_bookmarks || 0);
+            const indirectBadge = totalIndirect > 0 ?
+                `<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #E1F5FE; border-radius: 12px; font-size: 13px;" title="Indirect Engagement from quote posts"><span class="material-icons" style="font-size: 16px; color: #0277BD;">add_circle</span><span style="font-weight: 500; color: #0277BD;">+${totalIndirect} indirect</span></div>` : '';
+
+            html += `
+                <div class="post-card" onclick="window.open('${postUrl}', '_blank')" style="background: white; border: 1px solid #E0E0E0; border-radius: 12px; padding: 0; margin-bottom: 16px; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden;">
+                    <div style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px 16px;">
+                        <div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #1976D2, #0288D1); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 20px; flex-shrink: 0;">${blueskyHandle[0].toUpperCase()}</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: 600; font-size: 15px; color: #1C1B1F;">@${blueskyHandle}</div>
+                            <div style="font-size: 14px; color: #666;">Tracked Account</div>
+                        </div>
+                        <div style="font-size: 13px; color: #999;">${formattedDate}</div>
+                    </div>
+                    <div style="padding: 0 16px 12px 16px;">
+                        <div style="font-size: 15px; color: #1C1B1F; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;">${postText}</div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 20px; padding: 12px 16px; border-top: 1px solid #E0E0E0; background: #FAFAFA; font-size: 14px; flex-wrap: wrap;">
+                        <div style="display: inline-flex; align-items: center; gap: 6px;" title="Likes"><span class="material-icons" style="font-size: 18px; color: #1976D2;">favorite</span><span style="font-weight: 500;">${post.likes || 0}</span></div>
+                        <div style="display: inline-flex; align-items: center; gap: 6px;" title="Reposts"><span class="material-icons" style="font-size: 18px; color: #1976D2;">repeat</span><span style="font-weight: 500;">${post.reposts || 0}</span></div>
+                        <div style="display: inline-flex; align-items: center; gap: 6px;" title="Replies"><span class="material-icons" style="font-size: 18px; color: #1976D2;">chat_bubble_outline</span><span style="font-weight: 500;">${post.replies || 0}</span></div>
+                        <div style="display: inline-flex; align-items: center; gap: 6px;" title="Quotes"><span class="material-icons" style="font-size: 18px; color: #1976D2;">format_quote</span><span style="font-weight: 500;">${post.quotes || 0}</span></div>
+                        <div style="display: inline-flex; align-items: center; gap: 6px;" title="Saves"><span class="material-icons" style="font-size: 18px; color: #1976D2;">bookmark</span><span style="font-weight: 500;">${post.bookmarks || 0}</span></div>
+                        ${indirectBadge}
+                        <div style="display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-weight: 600; color: #1976D2; border-left: 1px solid #E0E0E0; padding-left: 20px;"><span class="material-icons" style="font-size: 18px;">trending_up</span><span>${engagementScore}</span></div>
+                    </div>
+                </div>`;
+        }
+        container.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading top posts:', error);
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><h4>Error loading posts</h4></div>';
+    }
+}
+
+async function loadUnfollowers(days) {
+    const container = document.getElementById('unfollowers-container');
+    const countBadge = document.getElementById('unfollowers-count');
+    const subtitle = document.getElementById('unfollowers-subtitle');
+
+    try {
+        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;"><span class="material-icons" style="font-size: 48px; animation: spin 1s linear infinite;">sync</span><p>Loading unfollowers...</p></div>';
+
+        const response = await fetch(`/api/unfollowers?days=${days}`);
+        const data = await response.json();
+
+        countBadge.textContent = data.unfollowers ? data.unfollowers.length : 0;
+        subtitle.textContent = `People who unfollowed you (${getTimeLabel(days).toLowerCase()})`;
+
+        if (!data.unfollowers || data.unfollowers.length === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🎉</div><h4>No unfollowers in this time period</h4></div>';
+            return;
+        }
+
+        let html = '<div class="user-grid">';
+        for (const user of data.unfollowers) {
+            const handle = user.handle || '';
+            const displayName = user.display_name || handle;
+            const avatarUrl = user.avatar || '';
+            const changeDate = user.change_date || '';
+            const profileUrl = `https://bsky.app/profile/${handle}`;
+
+            const avatarHtml = avatarUrl ?
+                `<div class="user-avatar"><img src="${avatarUrl}" alt="${displayName}" onerror="this.parentNode.innerHTML='<div style=\\'width:56px;height:56px;border-radius:50%;background:#CAC4D0;display:flex;align-items:center;justify-content:center;font-size:24px;color:#666;\\'>${displayName[0] || '?'}</div>'" loading="lazy"></div>` :
+                `<div class="user-avatar"><div style="width:56px;height:56px;border-radius:50%;background:#CAC4D0;display:flex;align-items:center;justify-content:center;font-size:24px;color:#666;">${displayName[0] || '?'}</div></div>`;
+
+            html += `
+                <div class="user-card" onclick="window.open('${profileUrl}', '_blank')">
+                    ${avatarHtml}
+                    <div class="user-content">
+                        <div class="user-header">
+                            <span class="user-name">${displayName}</span>
+                            ${changeDate ? `<span class="user-meta">${changeDate}</span>` : ''}
+                        </div>
+                        <div class="user-handle">@${handle}</div>
+                    </div>
+                    <div class="user-action"><span class="material-icons">open_in_new</span></div>
+                </div>`;
+        }
+        html += '</div>';
+        container.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading unfollowers:', error);
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><h4>Error loading unfollowers</h4></div>';
+    }
+}
+
+async function loadTopInteractors(days) {
+    const container = document.getElementById('top-interactors-container');
+    const countBadge = document.getElementById('top-interactors-count');
+    const subtitle = document.getElementById('top-interactors-subtitle');
+
+    try {
+        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;"><span class="material-icons" style="font-size: 48px; animation: spin 1s linear infinite;">sync</span><p>Loading top interactors...</p></div>';
+
+        const response = await fetch(`/api/top-interactors?days=${days}`);
+        const data = await response.json();
+
+        countBadge.textContent = data.count || 0;
+        subtitle.textContent = `People who engage most with your content (${getTimeLabel(days).toLowerCase()})`;
+
+        if (!data.interactors || data.interactors.length === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👥</div><h4>No interactors in this time period</h4></div>';
+            return;
+        }
+
+        let html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">';
+        for (const interactor of data.interactors) {
+            const handle = interactor.handle || '';
+            const displayName = interactor.display_name || handle;
+            const avatarUrl = interactor.avatar || '';
+            const score = interactor.score || 0;
+            const likes = interactor.likes || 0;
+            const replies = interactor.replies || 0;
+            const reposts = interactor.reposts || 0;
+            const quotes = interactor.quotes || 0;
+            const follows = interactor.follows || 0;
+            const profileUrl = `https://bsky.app/profile/${handle}`;
+
+            const avatarHtml = avatarUrl ?
+                `<div style="width: 56px; height: 56px;"><img src="${avatarUrl}" alt="${displayName}" style="width: 56px; height: 56px; border-radius: 50%; object-fit: cover;" onerror="this.parentNode.style.display='none'" loading="lazy"></div>` : '';
+
+            let badgesHtml = '';
+            if (likes > 0) badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #E3F2FD; color: #1976D2;"><span class="material-icons" style="font-size: 14px;">favorite</span>${likes}</span>`;
+            if (replies > 0) badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #E3F2FD; color: #1976D2; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">chat_bubble</span>${replies}</span>`;
+            if (reposts > 0) badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #E1F5FE; color: #0288D1; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">repeat</span>${reposts}</span>`;
+            if (quotes > 0) badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #B3E5FC; color: #01579B; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">format_quote</span>${quotes}</span>`;
+            if (follows > 0) badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #BBDEFB; color: #1976D2; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">person_add</span>${follows}</span>`;
+
+            html += `
+                <div style="background: white; border: 1px solid #CAC4D0; border-radius: 12px; padding: 16px; display: flex; gap: 16px; transition: all 0.2s; cursor: pointer;" onclick="window.open('${profileUrl}', '_blank')">
+                    ${avatarHtml}
+                    <div style="flex: 1;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                            <div style="font-weight: 600; color: #1C1B1F; font-size: 15px;">${displayName}</div>
+                            <div style="background: #1976D2; color: white; padding: 4px 12px; border-radius: 12px; font-size: 13px; font-weight: 600;">${score}</div>
+                        </div>
+                        <div style="color: #49454F; font-size: 14px; margin-bottom: 12px;">@${handle}</div>
+                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">${badgesHtml}</div>
+                    </div>
+                </div>`;
+        }
+        html += '</div>';
+        container.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading top interactors:', error);
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><h4>Error loading top interactors</h4></div>';
+    }
+}
+
+// Load AJAX sections on page init
+document.addEventListener('DOMContentLoaded', function() {
+    loadTopPosts(currentTimeRange);
+    loadUnfollowers(currentTimeRange);
+    loadTopInteractors(currentTimeRange);
+});
 
     </script>
     """

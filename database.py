@@ -1092,7 +1092,7 @@ class Database:
             logger.info(f"Saved interaction data for {len(interactions_data)} users")
 
     def get_top_interactors(self, days=30, limit=20):
-        """Get top people who interacted with you"""
+        """Get top people who interacted with you within the time period"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
@@ -1109,7 +1109,7 @@ class Database:
             if not latest_date:
                 return []
 
-            # Get top interactors
+            # Get top interactors filtered by last_interaction_date within time period
             cursor.execute(
                 """
                 SELECT user_did, user_handle, user_display_name, user_avatar, user_bio,
@@ -1117,10 +1117,11 @@ class Database:
                        follows_received, interaction_score, last_interaction_date
                 FROM interactions
                 WHERE collection_date = ?
+                AND DATE(last_interaction_date) >= DATE('now', '-' || ? || ' days')
                 ORDER BY interaction_score DESC
                 LIMIT ?
             """,
-                (latest_date, limit),
+                (latest_date, days, limit),
             )
 
             interactors = []
