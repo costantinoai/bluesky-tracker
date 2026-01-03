@@ -8,10 +8,18 @@ class Config:
     # REQUIRED: Set this in your .env file
     BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE", "")
 
-    # REQUIRED: App Password for authenticated access
+    # OPTIONAL: App Password for authenticated access
+    # Only needed for: interactions (who liked/replied to you)
     # Generate at: https://bsky.app/settings/app-passwords
-    # More secure than main password, can be revoked anytime
+    # Most features work WITHOUT this!
     BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_APP_PASSWORD", "").strip()
+
+    # Computed: Is authentication enabled?
+    # True if app password is provided, False otherwise
+    AUTH_ENABLED = bool(BLUESKY_APP_PASSWORD)
+
+    # Features that require authentication
+    AUTH_REQUIRED_FEATURES = ["interactions"]  # Only interactions needs auth now
 
     # Validate required configuration
     @classmethod
@@ -21,11 +29,6 @@ class Config:
 
         if not cls.BLUESKY_HANDLE or cls.BLUESKY_HANDLE == "your-handle.bsky.social":
             errors.append("BLUESKY_HANDLE is required. Set it in your .env file.")
-
-        if not cls.BLUESKY_APP_PASSWORD:
-            errors.append(
-                "BLUESKY_APP_PASSWORD is required. Generate one at https://bsky.app/settings/app-passwords"
-            )
 
         if errors:
             print("\n" + "=" * 70, file=sys.stderr)
@@ -40,8 +43,17 @@ class Config:
             print("=" * 70 + "\n", file=sys.stderr)
             sys.exit(1)
 
+        # Show auth status (not an error, just info)
+        if cls.AUTH_ENABLED:
+            print("Authentication: ENABLED (all features available)")
+        else:
+            print("Authentication: DISABLED (interactions feature unavailable)")
+            print("  To enable: Set BLUESKY_APP_PASSWORD in your .env file")
+
     # API settings
-    BLUESKY_API_URL = "https://bsky.social"  # Always use authenticated API
+    BLUESKY_API_URL = "https://bsky.social"  # For authenticated requests
+    PUBLIC_API_URL = "https://public.api.bsky.app"  # For public requests (no auth)
+    PLC_DIRECTORY_URL = "https://plc.directory"  # For DID resolution
     REQUEST_DELAY = 0.7  # Seconds between API calls
     MAX_RETRIES = 3
 
