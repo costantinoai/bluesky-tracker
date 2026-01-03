@@ -72,6 +72,7 @@ The installer will:
 - Followers only (they follow, you don't)
 - Unfollowers (last 30 days)
 - Hidden accounts (blocked, deactivated, or suspended)
+- **NEW:** Blocks with timestamps (from CAR files, no auth needed!)
 
 ### Post Engagement
 - Top posts by engagement score
@@ -80,15 +81,23 @@ The installer will:
 - Full post text (no truncation)
 - Clickable post cards linking to Bluesky
 
+### Engagement Balance (NEW)
+- **Engagement Given:** Likes, reposts, and replies you give to others
+- **Engagement Received:** Likes, reposts, and replies on your posts
+- **Balance Ratio:** See if you're a "giver" or "receiver"
+- **Top Accounts:** People you engage with most
+
 ### Historical Trends
 - Follower/following growth over time
 - Engagement timeline charts
 - Posting activity patterns
 - Engagement distribution breakdown
+- **NEW:** Historical timestamps for all data (when you followed someone, when you liked a post)
 
-### Top Interactors
+### Top Interactors (Requires Auth)
 - People who engage most with your content
 - Tracked from notification data
+- **Note:** This feature requires authentication
 
 ---
 
@@ -107,9 +116,22 @@ The installer will:
 
 ## Requirements
 
-### Bluesky App Password (Required)
+### Bluesky App Password (Optional)
 
-You **must** generate an app password:
+**Good news:** Authentication is now **optional**! Most features work without an app password.
+
+**Features that work WITHOUT auth:**
+- Follower/following counts and lists
+- Post engagement tracking (likes, reposts, replies received)
+- Historical data with timestamps (from CAR files)
+- Outgoing engagement tracking (likes, reposts you give)
+- Blocks (from CAR files)
+- Engagement balance comparison
+
+**Features that REQUIRE auth:**
+- **Top Interactors** - People who engage with your content (requires notification access)
+
+**To enable all features**, generate an app password:
 
 1. Go to [Bluesky Settings → App Passwords](https://bsky.app/settings/app-passwords)
 2. Click "Add App Password"
@@ -117,7 +139,7 @@ You **must** generate an app password:
 4. Copy the generated password
 5. Use it in your `.env` file
 
-**Why?** App passwords are more secure than your main password and can be revoked anytime.
+**Why app passwords?** They are more secure than your main password and can be revoked anytime.
 
 ### System Requirements
 
@@ -234,11 +256,13 @@ Edit `.env` file:
 
 ```bash
 BLUESKY_HANDLE=your-handle.bsky.social  # Required
-BLUESKY_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx  # Required - get from https://bsky.app/settings/app-passwords
+BLUESKY_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx  # Optional - only needed for Top Interactors feature
 PORT=8095  # Web dashboard port
 DATABASE_PATH=/app/data/bluesky.db  # Database location
 TZ=Europe/Brussels  # Timezone for scheduled collections
 ```
+
+**Note:** If `BLUESKY_APP_PASSWORD` is not set, the tracker will use public APIs and CAR files for data collection. The dashboard will show "Public API Only" badge instead of "Authenticated".
 
 ---
 
@@ -310,6 +334,27 @@ curl -X POST http://localhost:8095/api/collect
 - **API Stats**: http://localhost:8095/api/stats
 - **Health Check**: http://localhost:8095/health
 - **Prometheus Metrics**: http://localhost:8095/metrics
+
+### New API Endpoints
+
+**Engagement Balance:**
+- `GET /api/engagement/balance` - Compare engagement given vs received
+- `GET /api/engagement/balance?days=30` - Filter by time period
+
+**Outgoing Engagement:**
+- `GET /api/engagement/given` - Likes, reposts, replies you've given
+- `GET /api/engagement/given/top-accounts` - Accounts you engage with most
+
+**Historical Data:**
+- `GET /api/follows-history` - Following list with timestamps (when you followed)
+- `GET /api/posts/stats` - Full post history statistics
+
+**Backfill (CAR Import):**
+- `POST /api/backfill` - Import historical data from CAR file
+- `GET /api/backfill/history` - View backfill run history
+
+**Auth Status:**
+- `GET /api/auth/status` - Check authentication status and available features
 
 ### Backup Your Data
 
