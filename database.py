@@ -264,6 +264,117 @@ class Database:
                 "CREATE INDEX IF NOT EXISTS idx_engagement_metrics_date ON daily_engagement_metrics(metric_date)"
             )
 
+            # ===== NEW TABLES FOR CAR FILE DATA =====
+
+            # Likes given (outgoing engagement from CAR file)
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS likes_given (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    liked_post_uri TEXT NOT NULL,
+                    liked_author_did TEXT,
+                    liked_at TIMESTAMP NOT NULL,
+                    rkey TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(liked_post_uri, liked_at)
+                )
+            """
+            )
+
+            # Reposts given (outgoing engagement from CAR file)
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS reposts_given (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    reposted_uri TEXT NOT NULL,
+                    reposted_author_did TEXT,
+                    reposted_at TIMESTAMP NOT NULL,
+                    rkey TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(reposted_uri, reposted_at)
+                )
+            """
+            )
+
+            # Full post history (from CAR file - not just recent 50)
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS posts_full (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    post_uri TEXT UNIQUE,
+                    text TEXT,
+                    post_created_at TIMESTAMP NOT NULL,
+                    is_reply BOOLEAN DEFAULT 0,
+                    reply_to_uri TEXT,
+                    has_embed BOOLEAN DEFAULT 0,
+                    langs TEXT,
+                    source TEXT DEFAULT 'car',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """
+            )
+
+            # Backfill log (track CAR file backfill runs)
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS backfill_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    run_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    did TEXT NOT NULL,
+                    car_size_bytes INTEGER,
+                    follows_count INTEGER DEFAULT 0,
+                    posts_count INTEGER DEFAULT 0,
+                    likes_count INTEGER DEFAULT 0,
+                    reposts_count INTEGER DEFAULT 0,
+                    blocks_count INTEGER DEFAULT 0,
+                    duration_seconds REAL,
+                    status TEXT NOT NULL
+                )
+            """
+            )
+
+            # Indexes for new tables
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_likes_given_author ON likes_given(liked_author_did)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_likes_given_date ON likes_given(liked_at)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reposts_given_author ON reposts_given(reposted_author_did)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reposts_given_date ON reposts_given(reposted_at)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_posts_full_date ON posts_full(post_created_at)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_backfill_log_did ON backfill_log(did)"
+            )
+
+            # Add new columns to existing tables (SQLite ADD COLUMN is safe if column exists)
+            try:
+                cursor.execute(
+                    "ALTER TABLE following_snapshot ADD COLUMN followed_at TIMESTAMP"
+                )
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
+            try:
+                cursor.execute(
+                    "ALTER TABLE following_snapshot ADD COLUMN source TEXT DEFAULT 'api'"
+                )
+            except sqlite3.OperationalError:
+                pass
+
+            try:
+                cursor.execute(
+                    "ALTER TABLE blocked_snapshot ADD COLUMN blocked_at TIMESTAMP"
+                )
+            except sqlite3.OperationalError:
+                pass
+
             logger.info("Database initialized successfully")
 
     def save_snapshot(
@@ -1226,3 +1337,605 @@ class Database:
                 "follower_growth_30d": round(growth_rate, 2),
                 "follower_history": follower_history,
             }
+
+    # ===== CAR FILE DATA METHODS =====
+
+    def save_likes_given(self, likes_data):
+        """Save outgoing likes from CAR file data.
+
+        Args:
+            likes_data: List of dicts with keys:
+                - liked_post_uri: URI of the liked post
+                - liked_author_did: DID of the post author (optional)
+                - liked_at: Timestamp when like was created
+                - rkey: Record key (optional)
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            inserted = 0
+            for like in likes_data:
+                try:
+                    cursor.execute(
+                        """
+                        INSERT OR IGNORE INTO likes_given
+                        (liked_post_uri, liked_author_did, liked_at, rkey)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (
+                            like.get("liked_post_uri"),
+                            like.get("liked_author_did"),
+                            like.get("liked_at"),
+                            like.get("rkey"),
+                        ),
+                    )
+                    if cursor.rowcount > 0:
+                        inserted += 1
+                except sqlite3.Error as e:
+                    logger.warning(f"Error saving like: {e}")
+
+            logger.info(f"Saved {inserted} new likes (out of {len(likes_data)} total)")
+            return inserted
+
+    def save_reposts_given(self, reposts_data):
+        """Save outgoing reposts from CAR file data.
+
+        Args:
+            reposts_data: List of dicts with keys:
+                - reposted_uri: URI of the reposted post
+                - reposted_author_did: DID of the post author (optional)
+                - reposted_at: Timestamp when repost was created
+                - rkey: Record key (optional)
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            inserted = 0
+            for repost in reposts_data:
+                try:
+                    cursor.execute(
+                        """
+                        INSERT OR IGNORE INTO reposts_given
+                        (reposted_uri, reposted_author_did, reposted_at, rkey)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (
+                            repost.get("reposted_uri"),
+                            repost.get("reposted_author_did"),
+                            repost.get("reposted_at"),
+                            repost.get("rkey"),
+                        ),
+                    )
+                    if cursor.rowcount > 0:
+                        inserted += 1
+                except sqlite3.Error as e:
+                    logger.warning(f"Error saving repost: {e}")
+
+            logger.info(f"Saved {inserted} new reposts (out of {len(reposts_data)} total)")
+            return inserted
+
+    def save_posts_from_car(self, posts_data):
+        """Save full post history from CAR file data.
+
+        Args:
+            posts_data: List of dicts with keys:
+                - post_uri: Unique post URI
+                - text: Post text content
+                - post_created_at: Timestamp when post was created
+                - is_reply: Boolean whether post is a reply
+                - reply_to_uri: URI of parent post if reply
+                - has_embed: Boolean whether post has embeds
+                - langs: Language tags (comma-separated)
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            inserted = 0
+            for post in posts_data:
+                try:
+                    cursor.execute(
+                        """
+                        INSERT OR IGNORE INTO posts_full
+                        (post_uri, text, post_created_at, is_reply, reply_to_uri, has_embed, langs, source)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 'car')
+                        """,
+                        (
+                            post.get("post_uri"),
+                            post.get("text"),
+                            post.get("post_created_at"),
+                            1 if post.get("is_reply") else 0,
+                            post.get("reply_to_uri"),
+                            1 if post.get("has_embed") else 0,
+                            post.get("langs"),
+                        ),
+                    )
+                    if cursor.rowcount > 0:
+                        inserted += 1
+                except sqlite3.Error as e:
+                    logger.warning(f"Error saving post: {e}")
+
+            logger.info(f"Saved {inserted} new posts (out of {len(posts_data)} total)")
+            return inserted
+
+    def save_following_with_timestamps(self, collection_date, following_data):
+        """Save following list with CAR timestamps (followed_at).
+
+        Args:
+            collection_date: Date of collection
+            following_data: List of dicts with keys:
+                - did: User DID
+                - handle: User handle
+                - followed_at: Timestamp when follow was created (from CAR)
+                - display_name, avatar_url, bio: Profile info (optional)
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            for follow in following_data:
+                cursor.execute(
+                    """
+                    INSERT OR REPLACE INTO following_snapshot
+                    (collection_date, did, handle, display_name, avatar_url, bio, followed_at, source)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'car')
+                    """,
+                    (
+                        collection_date,
+                        follow["did"],
+                        follow.get("handle", ""),
+                        follow.get("display_name", ""),
+                        follow.get("avatar_url", ""),
+                        follow.get("bio", ""),
+                        follow.get("followed_at"),
+                    ),
+                )
+
+            logger.info(f"Saved {len(following_data)} following with timestamps")
+
+    def save_blocks_with_timestamps(self, collection_date, blocks_data):
+        """Save blocks with CAR timestamps (blocked_at).
+
+        Args:
+            collection_date: Date of collection
+            blocks_data: List of dicts with keys:
+                - did: Blocked user DID
+                - handle: Blocked user handle
+                - blocked_at: Timestamp when block was created (from CAR)
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            for block in blocks_data:
+                cursor.execute(
+                    """
+                    INSERT OR REPLACE INTO blocked_snapshot
+                    (collection_date, did, handle, display_name, avatar_url, bio, blocked_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        collection_date,
+                        block["did"],
+                        block.get("handle", ""),
+                        block.get("display_name", ""),
+                        block.get("avatar_url", ""),
+                        block.get("bio", ""),
+                        block.get("blocked_at"),
+                    ),
+                )
+
+            logger.info(f"Saved {len(blocks_data)} blocks with timestamps")
+
+    def log_backfill(self, did, car_size_bytes, stats, duration_seconds, status):
+        """Log a CAR file backfill run.
+
+        Args:
+            did: User DID that was backfilled
+            car_size_bytes: Size of CAR file in bytes
+            stats: Dict with counts (follows, posts, likes, reposts, blocks)
+            duration_seconds: Time taken for backfill
+            status: 'success' or 'error'
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO backfill_log
+                (did, car_size_bytes, follows_count, posts_count, likes_count,
+                 reposts_count, blocks_count, duration_seconds, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    did,
+                    car_size_bytes,
+                    stats.get("follows", 0),
+                    stats.get("posts", 0),
+                    stats.get("likes", 0),
+                    stats.get("reposts", 0),
+                    stats.get("blocks", 0),
+                    duration_seconds,
+                    status,
+                ),
+            )
+            logger.info(f"Logged backfill run for {did}: {status}")
+
+    def get_likes_given_stats(self, days=None):
+        """Get statistics about outgoing likes.
+
+        Args:
+            days: Optional - only count likes within last N days
+
+        Returns:
+            Dict with total_likes, top_liked_accounts, recent_likes
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Total likes
+            if days:
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) FROM likes_given
+                    WHERE liked_at >= datetime('now', '-' || ? || ' days')
+                    """,
+                    (days,),
+                )
+            else:
+                cursor.execute("SELECT COUNT(*) FROM likes_given")
+            total_likes = cursor.fetchone()[0]
+
+            # Top liked accounts (by DID)
+            if days:
+                cursor.execute(
+                    """
+                    SELECT liked_author_did, COUNT(*) as like_count
+                    FROM likes_given
+                    WHERE liked_author_did IS NOT NULL
+                    AND liked_at >= datetime('now', '-' || ? || ' days')
+                    GROUP BY liked_author_did
+                    ORDER BY like_count DESC
+                    LIMIT 10
+                    """,
+                    (days,),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT liked_author_did, COUNT(*) as like_count
+                    FROM likes_given
+                    WHERE liked_author_did IS NOT NULL
+                    GROUP BY liked_author_did
+                    ORDER BY like_count DESC
+                    LIMIT 10
+                    """
+                )
+            top_accounts = [
+                {"did": row[0], "like_count": row[1]}
+                for row in cursor.fetchall()
+            ]
+
+            # Recent likes (last 10)
+            cursor.execute(
+                """
+                SELECT liked_post_uri, liked_author_did, liked_at
+                FROM likes_given
+                ORDER BY liked_at DESC
+                LIMIT 10
+                """
+            )
+            recent_likes = [
+                {"uri": row[0], "author_did": row[1], "liked_at": row[2]}
+                for row in cursor.fetchall()
+            ]
+
+            return {
+                "total_likes": total_likes,
+                "top_liked_accounts": top_accounts,
+                "recent_likes": recent_likes,
+            }
+
+    def get_reposts_given_stats(self, days=None):
+        """Get statistics about outgoing reposts.
+
+        Args:
+            days: Optional - only count reposts within last N days
+
+        Returns:
+            Dict with total_reposts, top_reposted_accounts, recent_reposts
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Total reposts
+            if days:
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) FROM reposts_given
+                    WHERE reposted_at >= datetime('now', '-' || ? || ' days')
+                    """,
+                    (days,),
+                )
+            else:
+                cursor.execute("SELECT COUNT(*) FROM reposts_given")
+            total_reposts = cursor.fetchone()[0]
+
+            # Top reposted accounts
+            if days:
+                cursor.execute(
+                    """
+                    SELECT reposted_author_did, COUNT(*) as repost_count
+                    FROM reposts_given
+                    WHERE reposted_author_did IS NOT NULL
+                    AND reposted_at >= datetime('now', '-' || ? || ' days')
+                    GROUP BY reposted_author_did
+                    ORDER BY repost_count DESC
+                    LIMIT 10
+                    """,
+                    (days,),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT reposted_author_did, COUNT(*) as repost_count
+                    FROM reposts_given
+                    WHERE reposted_author_did IS NOT NULL
+                    GROUP BY reposted_author_did
+                    ORDER BY repost_count DESC
+                    LIMIT 10
+                    """
+                )
+            top_accounts = [
+                {"did": row[0], "repost_count": row[1]}
+                for row in cursor.fetchall()
+            ]
+
+            # Recent reposts
+            cursor.execute(
+                """
+                SELECT reposted_uri, reposted_author_did, reposted_at
+                FROM reposts_given
+                ORDER BY reposted_at DESC
+                LIMIT 10
+                """
+            )
+            recent_reposts = [
+                {"uri": row[0], "author_did": row[1], "reposted_at": row[2]}
+                for row in cursor.fetchall()
+            ]
+
+            return {
+                "total_reposts": total_reposts,
+                "top_reposted_accounts": top_accounts,
+                "recent_reposts": recent_reposts,
+            }
+
+    def get_posts_full_stats(self, days=None):
+        """Get statistics about full post history.
+
+        Args:
+            days: Optional - only count posts within last N days
+
+        Returns:
+            Dict with total_posts, reply_count, original_count, etc.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            where_clause = ""
+            params = ()
+            if days:
+                where_clause = "WHERE post_created_at >= datetime('now', '-' || ? || ' days')"
+                params = (days,)
+
+            # Total posts and reply breakdown
+            cursor.execute(
+                f"""
+                SELECT
+                    COUNT(*) as total_posts,
+                    SUM(CASE WHEN is_reply = 1 THEN 1 ELSE 0 END) as reply_count,
+                    SUM(CASE WHEN is_reply = 0 THEN 1 ELSE 0 END) as original_count,
+                    SUM(CASE WHEN has_embed = 1 THEN 1 ELSE 0 END) as with_embed_count
+                FROM posts_full
+                {where_clause}
+                """,
+                params,
+            )
+            row = cursor.fetchone()
+
+            total_posts = row[0] or 0
+            reply_count = row[1] or 0
+            original_count = row[2] or 0
+            with_embed_count = row[3] or 0
+
+            # Recent posts
+            cursor.execute(
+                """
+                SELECT post_uri, text, post_created_at, is_reply
+                FROM posts_full
+                ORDER BY post_created_at DESC
+                LIMIT 10
+                """
+            )
+            recent_posts = [
+                {
+                    "uri": row[0],
+                    "text": row[1][:100] if row[1] else "",
+                    "created_at": row[2],
+                    "is_reply": bool(row[3]),
+                }
+                for row in cursor.fetchall()
+            ]
+
+            return {
+                "total_posts": total_posts,
+                "reply_count": reply_count,
+                "original_count": original_count,
+                "with_embed_count": with_embed_count,
+                "reply_ratio": round(reply_count / total_posts, 2) if total_posts > 0 else 0,
+                "recent_posts": recent_posts,
+            }
+
+    def get_following_with_timestamps(self):
+        """Get following list with follow timestamps from CAR data."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Get latest collection date
+            cursor.execute("SELECT MAX(collection_date) FROM following_snapshot")
+            latest_date = cursor.fetchone()[0]
+
+            if not latest_date:
+                return []
+
+            cursor.execute(
+                """
+                SELECT did, handle, display_name, avatar_url, bio, followed_at, source
+                FROM following_snapshot
+                WHERE collection_date = ?
+                ORDER BY followed_at DESC NULLS LAST
+                """,
+                (latest_date,),
+            )
+
+            return [
+                {
+                    "did": row[0],
+                    "handle": row[1],
+                    "display_name": row[2],
+                    "avatar_url": row[3],
+                    "bio": row[4],
+                    "followed_at": row[5],
+                    "source": row[6],
+                }
+                for row in cursor.fetchall()
+            ]
+
+    def get_engagement_balance(self, days=None):
+        """Get comparison of engagement given vs received.
+
+        Returns dict with:
+            - given: {likes, reposts, replies}
+            - received: {likes, reposts, replies}
+            - ratio: given/received (< 1 means receiving more)
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Likes given
+            if days:
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) FROM likes_given
+                    WHERE liked_at >= datetime('now', '-' || ? || ' days')
+                    """,
+                    (days,),
+                )
+            else:
+                cursor.execute("SELECT COUNT(*) FROM likes_given")
+            likes_given = cursor.fetchone()[0] or 0
+
+            # Reposts given
+            if days:
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) FROM reposts_given
+                    WHERE reposted_at >= datetime('now', '-' || ? || ' days')
+                    """,
+                    (days,),
+                )
+            else:
+                cursor.execute("SELECT COUNT(*) FROM reposts_given")
+            reposts_given = cursor.fetchone()[0] or 0
+
+            # Replies given (posts that are replies)
+            if days:
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) FROM posts_full
+                    WHERE is_reply = 1
+                    AND post_created_at >= datetime('now', '-' || ? || ' days')
+                    """,
+                    (days,),
+                )
+            else:
+                cursor.execute("SELECT COUNT(*) FROM posts_full WHERE is_reply = 1")
+            replies_given = cursor.fetchone()[0] or 0
+
+            # Received engagement (from post_engagement or daily_engagement_metrics)
+            cursor.execute("SELECT MAX(collection_date) FROM post_engagement")
+            latest_date = cursor.fetchone()[0]
+
+            likes_received = 0
+            reposts_received = 0
+            replies_received = 0
+
+            if latest_date:
+                cursor.execute(
+                    """
+                    SELECT
+                        COALESCE(SUM(like_count), 0),
+                        COALESCE(SUM(repost_count), 0),
+                        COALESCE(SUM(reply_count), 0)
+                    FROM post_engagement
+                    WHERE collection_date = ?
+                    """,
+                    (latest_date,),
+                )
+                row = cursor.fetchone()
+                likes_received = row[0]
+                reposts_received = row[1]
+                replies_received = row[2]
+
+            # Calculate totals and ratio
+            total_given = likes_given + reposts_given + replies_given
+            total_received = likes_received + reposts_received + replies_received
+
+            ratio = 0
+            if total_received > 0:
+                ratio = round(total_given / total_received, 2)
+
+            return {
+                "given": {
+                    "likes": likes_given,
+                    "reposts": reposts_given,
+                    "replies": replies_given,
+                    "total": total_given,
+                },
+                "received": {
+                    "likes": likes_received,
+                    "reposts": reposts_received,
+                    "replies": replies_received,
+                    "total": total_received,
+                },
+                "ratio": ratio,
+                "balance_type": "giver" if ratio > 1 else "receiver" if ratio < 1 else "balanced",
+            }
+
+    def get_backfill_history(self, limit=10):
+        """Get recent backfill run history."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT run_date, did, car_size_bytes, follows_count, posts_count,
+                       likes_count, reposts_count, blocks_count, duration_seconds, status
+                FROM backfill_log
+                ORDER BY run_date DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+
+            return [
+                {
+                    "run_date": row[0],
+                    "did": row[1],
+                    "car_size_bytes": row[2],
+                    "follows_count": row[3],
+                    "posts_count": row[4],
+                    "likes_count": row[5],
+                    "reposts_count": row[6],
+                    "blocks_count": row[7],
+                    "duration_seconds": row[8],
+                    "status": row[9],
+                }
+                for row in cursor.fetchall()
+            ]
