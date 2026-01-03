@@ -437,6 +437,14 @@ class CARClient:
             result["collections"][collection_name] = processed
             result["counts"][collection_name] = len(processed)
 
+        # Also add simplified top-level keys for easier access
+        result["follows"] = result["collections"].get("app.bsky.graph.follow", [])
+        result["likes"] = result["collections"].get("app.bsky.feed.like", [])
+        result["posts"] = result["collections"].get("app.bsky.feed.post", [])
+        result["blocks"] = result["collections"].get("app.bsky.graph.block", [])
+        result["reposts"] = result["collections"].get("app.bsky.feed.repost", [])
+        result["profile"] = result["collections"].get("app.bsky.actor.profile", [])
+
         logger.info(
             f"Processed {did}: {result['counts']} records, {len(car_bytes):,} bytes"
         )
