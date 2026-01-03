@@ -414,6 +414,173 @@ def api_advanced_metrics():
         return jsonify({"error": "Internal error"}), 500
 
 
+# ===== NEW ENDPOINTS FOR CAR-BASED DATA =====
+
+
+@app.route("/api/backfill", methods=["POST"])
+def api_backfill():
+    """Trigger CAR file backfill for historical timestamps"""
+    try:
+        logger.info("Backfill triggered via API")
+        result = collector.backfill_historical_data()
+
+        if result.get("status") == "success":
+            api_requests.labels(endpoint="/api/backfill", status="success").inc()
+            return jsonify(result)
+        else:
+            api_requests.labels(endpoint="/api/backfill", status="error").inc()
+            return jsonify(result), 500
+    except Exception as e:
+        logger.error(f"/api/backfill error: {e}")
+        api_requests.labels(endpoint="/api/backfill", status="error").inc()
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+
+@app.route("/api/follows-history")
+def api_follows_history():
+    """Get following list with WHEN each follow happened (from CAR data)"""
+    try:
+        follows = db.get_following_with_timestamps()
+        api_requests.labels(endpoint="/api/follows-history", status="success").inc()
+        return jsonify({"follows": follows, "count": len(follows)})
+    except Exception as e:
+        logger.error(f"/api/follows-history error: {e}")
+        api_requests.labels(endpoint="/api/follows-history", status="error").inc()
+        return jsonify({"error": "Internal error"}), 500
+
+
+@app.route("/api/engagement/balance")
+def api_engagement_balance():
+    """Get comparison of engagement given vs received"""
+    try:
+        days = request.args.get("days")
+        if days:
+            days = int(days)
+        balance = db.get_engagement_balance(days=days)
+        api_requests.labels(endpoint="/api/engagement/balance", status="success").inc()
+        return jsonify(balance)
+    except Exception as e:
+        logger.error(f"/api/engagement/balance error: {e}")
+        api_requests.labels(endpoint="/api/engagement/balance", status="error").inc()
+        return jsonify({"error": "Internal error"}), 500
+
+
+@app.route("/api/engagement/given")
+def api_engagement_given():
+    """Get outgoing engagement statistics (likes, reposts, replies given)"""
+    try:
+        days = request.args.get("days")
+        if days:
+            days = int(days)
+
+        likes_stats = db.get_likes_given_stats(days=days)
+        reposts_stats = db.get_reposts_given_stats(days=days)
+        posts_stats = db.get_posts_full_stats(days=days)
+
+        api_requests.labels(endpoint="/api/engagement/given", status="success").inc()
+        return jsonify({
+            "likes": likes_stats,
+            "reposts": reposts_stats,
+            "posts": posts_stats,
+        })
+    except Exception as e:
+        logger.error(f"/api/engagement/given error: {e}")
+        api_requests.labels(endpoint="/api/engagement/given", status="error").inc()
+        return jsonify({"error": "Internal error"}), 500
+
+
+@app.route("/api/engagement/given/top-accounts")
+def api_engagement_given_top_accounts():
+    """Get accounts you engage with most (like, repost)"""
+    try:
+        days = request.args.get("days")
+        if days:
+            days = int(days)
+        limit = int(request.args.get("limit", 10))
+
+        likes_stats = db.get_likes_given_stats(days=days)
+        reposts_stats = db.get_reposts_given_stats(days=days)
+
+        # Merge top liked and reposted accounts
+        account_engagement = {}
+        for item in likes_stats.get("top_liked_accounts", []):
+            did = item["did"]
+            if did not in account_engagement:
+                account_engagement[did] = {"did": did, "likes": 0, "reposts": 0}
+            account_engagement[did]["likes"] = item["like_count"]
+
+        for item in reposts_stats.get("top_reposted_accounts", []):
+            did = item["did"]
+            if did not in account_engagement:
+                account_engagement[did] = {"did": did, "likes": 0, "reposts": 0}
+            account_engagement[did]["reposts"] = item["repost_count"]
+
+        # Sort by total engagement
+        sorted_accounts = sorted(
+            account_engagement.values(),
+            key=lambda x: x["likes"] + x["reposts"] * 2,
+            reverse=True
+        )[:limit]
+
+        api_requests.labels(endpoint="/api/engagement/given/top-accounts", status="success").inc()
+        return jsonify({"accounts": sorted_accounts, "count": len(sorted_accounts)})
+    except Exception as e:
+        logger.error(f"/api/engagement/given/top-accounts error: {e}")
+        api_requests.labels(endpoint="/api/engagement/given/top-accounts", status="error").inc()
+        return jsonify({"error": "Internal error"}), 500
+
+
+@app.route("/api/posts/stats")
+def api_posts_stats():
+    """Get full post history statistics"""
+    try:
+        days = request.args.get("days")
+        if days:
+            days = int(days)
+        stats = db.get_posts_full_stats(days=days)
+        api_requests.labels(endpoint="/api/posts/stats", status="success").inc()
+        return jsonify(stats)
+    except Exception as e:
+        logger.error(f"/api/posts/stats error: {e}")
+        api_requests.labels(endpoint="/api/posts/stats", status="error").inc()
+        return jsonify({"error": "Internal error"}), 500
+
+
+@app.route("/api/backfill/history")
+def api_backfill_history():
+    """Get history of CAR backfill runs"""
+    try:
+        limit = int(request.args.get("limit", 10))
+        history = db.get_backfill_history(limit=limit)
+        api_requests.labels(endpoint="/api/backfill/history", status="success").inc()
+        return jsonify({"history": history, "count": len(history)})
+    except Exception as e:
+        logger.error(f"/api/backfill/history error: {e}")
+        api_requests.labels(endpoint="/api/backfill/history", status="error").inc()
+        return jsonify({"error": "Internal error"}), 500
+
+
+@app.route("/api/auth/status")
+def api_auth_status():
+    """Get authentication status and available features"""
+    auth_enabled = Config.AUTH_ENABLED
+    features = {
+        "followers": True,  # Always available (public API)
+        "following": True,  # Always available (CAR file)
+        "profile": True,  # Always available (public API)
+        "engagement_received": True,  # Always available (public API)
+        "engagement_given": True,  # Always available (CAR file)
+        "blocks": True,  # Always available (CAR file, not API)
+        "historical_data": True,  # Always available (CAR file)
+        "interactions": auth_enabled,  # Requires auth (notifications)
+    }
+    return jsonify({
+        "auth_enabled": auth_enabled,
+        "features": features,
+        "auth_required_features": Config.AUTH_REQUIRED_FEATURES,
+    })
+
+
 @app.route("/health")
 def health():
     """Health check endpoint"""
@@ -911,6 +1078,14 @@ def init_app():
     """Initialize the application (scheduler, initial collection, etc.)"""
     logger.info("Bluesky Tracker initializing...")
 
+    # Show auth status
+    if Config.AUTH_ENABLED:
+        logger.info("Authentication: ENABLED (all features available)")
+    else:
+        logger.info("Authentication: DISABLED (interactions feature unavailable)")
+        logger.info("  Using public API and CAR files for data collection")
+        logger.info("  To enable: Set BLUESKY_APP_PASSWORD in .env")
+
     # Check if database is empty (no collections yet)
     db_empty = False
     try:
@@ -925,8 +1100,8 @@ def init_app():
         try:
             from collector import BlueskyCollector
 
-            collector = BlueskyCollector()
-            collector.collect()
+            new_collector = BlueskyCollector()
+            new_collector.collect()
             logger.info("Initial data collection completed")
         except Exception as e:
             logger.error(f"Initial collection failed: {e}")
