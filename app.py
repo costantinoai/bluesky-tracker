@@ -312,6 +312,7 @@ def report():
             "advanced_metrics": advanced_metrics,
             "top_interactors": top_interactors,
             "bluesky_handle": Config.BLUESKY_HANDLE,
+            "auth_enabled": Config.AUTH_ENABLED,
         }
 
         # Render template

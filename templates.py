@@ -20,6 +20,7 @@ def get_report_html(data):
     top_interactors = data.get("top_interactors", [])
     last_updated = data.get("last_updated", "Never")
     bluesky_handle = data.get("bluesky_handle", "your-handle.bsky.social")
+    auth_enabled = data.get("auth_enabled", True)  # For showing auth status
 
     # Helper function for user cards with hiding capability
     def user_card(user, meta_text="", show_bio=True, index=0):
@@ -208,8 +209,8 @@ def get_report_html(data):
                         <span class="material-icons" style="font-size: 18px;">sync</span>
                         Refresh Data
                     </button>
-                    <div class="auth-badge">
-                        <span>Authenticated ✓</span>
+                    <div class="auth-badge" style="background: {'var(--md-success-container)' if auth_enabled else '#FFF3E0'}; color: {'var(--md-success)' if auth_enabled else '#F57C00'};">
+                        <span>{'Authenticated ✓' if auth_enabled else 'Public API Only'}</span>
                     </div>
                 </div>
             </div>
@@ -257,6 +258,86 @@ def get_report_html(data):
             <button class="time-range-btn" data-days="90" onclick="changeGlobalTimeRange(90)">90D</button>
             <button class="time-range-btn" data-days="365" onclick="changeGlobalTimeRange(365)">1Y</button>
             <button class="time-range-btn" data-days="999999" onclick="changeGlobalTimeRange(999999)">All</button>
+        </div>
+
+        <!-- ENGAGEMENT BALANCE SECTION (Given vs Received) -->
+        <div class="section-card" style="margin-bottom: 16px;">
+            <div class="section-header" onclick="toggleSection(this)">
+                <div class="section-title">
+                    <div class="section-icon">⚖️</div>
+                    <div class="section-text">
+                        <h3>Engagement Balance</h3>
+                        <p id="engagement-balance-subtitle">Comparing what you give vs what you receive</p>
+                    </div>
+                </div>
+                <svg class="section-chevron expanded" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                </svg>
+            </div>
+            <div class="section-content expanded">
+                <div class="section-body" id="engagement-balance-container">
+                    <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 24px; align-items: center;">
+                        <!-- Given Column -->
+                        <div style="background: #E8F5E9; border-radius: 12px; padding: 20px;">
+                            <h4 style="font-size: 16px; font-weight: 600; color: #388E3C; margin-bottom: 16px; text-align: center;">Given (Outgoing)</h4>
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; text-align: center;">
+                                <div>
+                                    <div id="given-likes" style="font-size: 28px; font-weight: 700; color: #388E3C;">-</div>
+                                    <div style="font-size: 12px; color: #666;">Likes</div>
+                                </div>
+                                <div>
+                                    <div id="given-reposts" style="font-size: 28px; font-weight: 700; color: #388E3C;">-</div>
+                                    <div style="font-size: 12px; color: #666;">Reposts</div>
+                                </div>
+                                <div>
+                                    <div id="given-replies" style="font-size: 28px; font-weight: 700; color: #388E3C;">-</div>
+                                    <div style="font-size: 12px; color: #666;">Replies</div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 16px; text-align: center; border-top: 1px solid #A5D6A7; padding-top: 12px;">
+                                <span style="font-size: 14px; color: #666;">Total:</span>
+                                <span id="given-total" style="font-size: 20px; font-weight: 700; color: #2E7D32; margin-left: 8px;">-</span>
+                            </div>
+                        </div>
+
+                        <!-- Balance Indicator -->
+                        <div style="text-align: center;">
+                            <div id="balance-indicator" style="width: 80px; height: 80px; border-radius: 50%; background: #E3F2FD; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto;">
+                                <div id="balance-ratio" style="font-size: 24px; font-weight: 700; color: #1976D2;">-</div>
+                                <div style="font-size: 11px; color: #666;">ratio</div>
+                            </div>
+                            <div id="balance-type" style="font-size: 13px; font-weight: 500; color: #666; margin-top: 8px;">Loading...</div>
+                        </div>
+
+                        <!-- Received Column -->
+                        <div style="background: #E3F2FD; border-radius: 12px; padding: 20px;">
+                            <h4 style="font-size: 16px; font-weight: 600; color: #1976D2; margin-bottom: 16px; text-align: center;">Received (Incoming)</h4>
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; text-align: center;">
+                                <div>
+                                    <div id="received-likes" style="font-size: 28px; font-weight: 700; color: #1976D2;">-</div>
+                                    <div style="font-size: 12px; color: #666;">Likes</div>
+                                </div>
+                                <div>
+                                    <div id="received-reposts" style="font-size: 28px; font-weight: 700; color: #1976D2;">-</div>
+                                    <div style="font-size: 12px; color: #666;">Reposts</div>
+                                </div>
+                                <div>
+                                    <div id="received-replies" style="font-size: 28px; font-weight: 700; color: #1976D2;">-</div>
+                                    <div style="font-size: 12px; color: #666;">Replies</div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 16px; text-align: center; border-top: 1px solid #90CAF9; padding-top: 12px;">
+                                <span style="font-size: 14px; color: #666;">Total:</span>
+                                <span id="received-total" style="font-size: 20px; font-weight: 700; color: #1565C0; margin-left: 8px;">-</span>
+                            </div>
+                        </div>
+                    </div>
+                    <p style="font-size: 13px; color: #666; text-align: center; margin-top: 16px;">
+                        <strong>Ratio &lt; 1</strong> = you receive more than you give (receiver) |
+                        <strong>Ratio &gt; 1</strong> = you give more than you receive (giver)
+                    </p>
+                </div>
+            </div>
         </div>
 """
 
@@ -940,6 +1021,7 @@ function changeGlobalTimeRange(days) {
     loadTopPosts(days);
     loadUnfollowers(days);
     loadTopInteractors(days);
+    loadEngagementBalance(days);
 }
 
 function getTimeLabel(days) {
@@ -1511,11 +1593,62 @@ async function loadTopInteractors(days) {
     }
 }
 
+async function loadEngagementBalance(days) {
+    try {
+        const url = days ? `/api/engagement/balance?days=${days}` : '/api/engagement/balance';
+        const response = await fetch(url);
+        const data = await response.json();
+
+        // Update Given column
+        document.getElementById('given-likes').textContent = data.given?.likes || 0;
+        document.getElementById('given-reposts').textContent = data.given?.reposts || 0;
+        document.getElementById('given-replies').textContent = data.given?.replies || 0;
+        document.getElementById('given-total').textContent = data.given?.total || 0;
+
+        // Update Received column
+        document.getElementById('received-likes').textContent = data.received?.likes || 0;
+        document.getElementById('received-reposts').textContent = data.received?.reposts || 0;
+        document.getElementById('received-replies').textContent = data.received?.replies || 0;
+        document.getElementById('received-total').textContent = data.received?.total || 0;
+
+        // Update ratio and balance type
+        const ratio = data.ratio || 0;
+        document.getElementById('balance-ratio').textContent = ratio.toFixed(2);
+
+        const balanceType = data.balance_type || 'balanced';
+        const balanceTypeElem = document.getElementById('balance-type');
+        const balanceIndicator = document.getElementById('balance-indicator');
+
+        if (balanceType === 'giver') {
+            balanceTypeElem.textContent = 'You give more';
+            balanceTypeElem.style.color = '#388E3C';
+            balanceIndicator.style.background = '#E8F5E9';
+        } else if (balanceType === 'receiver') {
+            balanceTypeElem.textContent = 'You receive more';
+            balanceTypeElem.style.color = '#1976D2';
+            balanceIndicator.style.background = '#E3F2FD';
+        } else {
+            balanceTypeElem.textContent = 'Balanced';
+            balanceTypeElem.style.color = '#666';
+            balanceIndicator.style.background = '#F5F5F5';
+        }
+
+        // Update subtitle
+        const subtitle = document.getElementById('engagement-balance-subtitle');
+        if (subtitle) {
+            subtitle.textContent = `Comparing what you give vs what you receive (${getTimeLabel(days || 999999).toLowerCase()})`;
+        }
+    } catch (error) {
+        console.error('Error loading engagement balance:', error);
+    }
+}
+
 // Load AJAX sections on page init
 document.addEventListener('DOMContentLoaded', function() {
     loadTopPosts(currentTimeRange);
     loadUnfollowers(currentTimeRange);
     loadTopInteractors(currentTimeRange);
+    loadEngagementBalance(currentTimeRange);
 });
 
     </script>
