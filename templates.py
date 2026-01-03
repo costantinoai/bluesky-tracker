@@ -107,7 +107,10 @@ def get_report_html(data):
         .auth-badge {{ display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px;
                        border-radius: 28px; font-size: 13px; font-weight: 500;
                        background: var(--md-success-container); color: var(--md-success); }}
-        .stats-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }}
+        .stats-grid {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px; }}
+        @media (max-width: 1200px) {{ .stats-grid {{ grid-template-columns: repeat(5, 1fr); }} }}
+        @media (max-width: 900px) {{ .stats-grid {{ grid-template-columns: repeat(3, 1fr); }} }}
+        @media (max-width: 600px) {{ .stats-grid {{ grid-template-columns: repeat(2, 1fr); }} }}
         .stat-card {{ background: white; border-radius: 16px; padding: 24px; box-shadow: var(--md-elevation-1);
                       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; cursor: pointer; }}
         .stat-card::before {{ content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
@@ -362,7 +365,7 @@ def get_report_html(data):
     <div class="section-content expanded">
         <div class="section-body">
             <!-- Stats Summary Cards -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 24px;">
+            <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 12px; margin-bottom: 24px;">
                 <div style="background: #E3F2FD; border-radius: 12px; padding: 16px; text-align: center;">
                     <div style="font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 4px;">Days Tracked</div>
                     <div id="stat-days-tracked" style="font-size: 28px; font-weight: 700; color: #1976D2;">-</div>
@@ -398,7 +401,7 @@ def get_report_html(data):
             </div>
 
             <!-- Graphs Grid -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 24px;">
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;">
 
                 <!-- Row 1: Network Growth (left), Engagement Timeline (right) -->
                 <!-- Follower Growth Chart -->
@@ -1403,6 +1406,19 @@ async function loadEngagementBreakdownChart(days) {
 // ========================================================================
 
 const blueskyHandle = '""" + bluesky_handle + """';
+let userAvatarUrl = null;
+
+// Fetch user avatar on page load
+async function fetchUserAvatar() {
+    try {
+        const response = await fetch(`https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${blueskyHandle}`);
+        const data = await response.json();
+        userAvatarUrl = data.avatar || null;
+    } catch (e) {
+        console.log('Could not fetch avatar:', e);
+    }
+}
+fetchUserAvatar();
 
 async function loadTopPosts(days) {
     const container = document.getElementById('top-posts-container');
@@ -1450,7 +1466,10 @@ async function loadTopPosts(days) {
             html += `
                 <div class="post-card" onclick="window.open('${postUrl}', '_blank')" style="background: white; border: 1px solid #E0E0E0; border-radius: 12px; padding: 0; margin-bottom: 16px; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden;">
                     <div style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px 16px;">
-                        <div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #1976D2, #0288D1); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 20px; flex-shrink: 0;">${blueskyHandle[0].toUpperCase()}</div>
+                        ${userAvatarUrl
+                            ? `<img src="${userAvatarUrl}" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" alt="avatar">`
+                            : `<div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #1976D2, #0288D1); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 20px; flex-shrink: 0;">${blueskyHandle[0].toUpperCase()}</div>`
+                        }
                         <div style="flex: 1; min-width: 0;">
                             <div style="font-weight: 600; font-size: 15px; color: #1C1B1F;">@${blueskyHandle}</div>
                             <div style="font-size: 14px; color: #666;">Tracked Account</div>

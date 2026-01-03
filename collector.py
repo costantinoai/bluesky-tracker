@@ -107,29 +107,47 @@ class BlueskyCollector:
 
     def fetch_following_from_car(self, did):
         """
-        Fetch following list from CAR file (ONE API call, includes timestamps).
+        Fetch following list using HYBRID approach:
+        - Public API for profile info (handles, display names, avatars)
+        - CAR file for timestamps (when the follow happened)
         No auth required!
         """
         try:
-            logger.info("Fetching following via CAR file...")
-            follows = self.car_client.get_follows_with_timestamps(did)
+            logger.info("Fetching following via hybrid approach (API + CAR)...")
 
+            # Get profile info from public API
+            api_follows = self.public_api.get_all_following(Config.BLUESKY_HANDLE)
+            logger.info(f"Got {len(api_follows)} following from public API")
+
+            # Get timestamps from CAR file
+            car_follows = self.car_client.get_follows_with_timestamps(did)
+            logger.info(f"Got {len(car_follows)} following timestamps from CAR")
+
+            # Create a DID -> timestamp map from CAR data
+            timestamp_map = {}
+            for follow in car_follows:
+                follow_did = follow.get("did")
+                if follow_did:
+                    timestamp_map[follow_did] = follow.get("created_at")
+
+            # Merge: API profiles + CAR timestamps
             following = []
-            for follow in follows:
+            for follow in api_follows:
+                follow_did = follow.get("did")
                 following.append({
-                    "did": follow.get("did"),
-                    "handle": "",  # CAR doesn't have handles, will be enriched later if needed
-                    "display_name": "",
-                    "avatar_url": "",
-                    "bio": "",
-                    "followed_at": follow.get("created_at"),
+                    "did": follow_did,
+                    "handle": follow.get("handle", ""),
+                    "display_name": follow.get("displayName", ""),
+                    "avatar_url": follow.get("avatar", ""),
+                    "bio": follow.get("description", ""),
+                    "followed_at": timestamp_map.get(follow_did),  # From CAR
                 })
 
-            logger.info(f"Fetched {len(following)} following from CAR file with timestamps")
+            logger.info(f"Merged {len(following)} following with timestamps")
             return following
 
         except Exception as e:
-            logger.error(f"Error fetching following from CAR: {e}")
+            logger.error(f"Error fetching following: {e}")
             return []
 
     def fetch_blocks_from_car(self, did):
