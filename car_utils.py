@@ -253,6 +253,7 @@ class CARClient:
                 follows.append(
                     {
                         "subject_did": subject_did,
+                        "did": subject_did,  # Alias for compatibility
                         "created_at": self._parse_timestamp(created_at_str),
                         "created_at_str": created_at_str,
                         "cid": record.get("cid"),
@@ -360,6 +361,7 @@ class CARClient:
                 blocks.append(
                     {
                         "subject_did": subject_did,
+                        "did": subject_did,  # Alias for compatibility
                         "created_at": self._parse_timestamp(created_at_str),
                         "created_at_str": created_at_str,
                         "cid": record.get("cid"),
@@ -462,6 +464,7 @@ class CARClient:
                 follows.append(
                     {
                         "subject_did": subject_did,
+                        "did": subject_did,  # Alias for compatibility
                         "created_at": self._parse_timestamp(created_at_str),
                         "created_at_str": created_at_str,
                     }
@@ -530,6 +533,7 @@ class CARClient:
                 blocks.append(
                     {
                         "subject_did": subject_did,
+                        "did": subject_did,  # Alias for compatibility
                         "created_at": self._parse_timestamp(created_at_str),
                         "created_at_str": created_at_str,
                     }
