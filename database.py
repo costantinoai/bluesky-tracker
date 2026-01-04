@@ -64,7 +64,7 @@ class Database:
             """
             )
 
-            # Change events
+            # Change events (with unique constraint to prevent duplicates)
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS follower_changes (
@@ -73,10 +73,38 @@ class Database:
                     change_type TEXT NOT NULL,
                     did TEXT NOT NULL,
                     handle TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(change_date, change_type, did)
                 )
             """
             )
+
+            # Migration: deduplicate and add unique constraint to existing follower_changes
+            try:
+                # First, remove duplicate entries keeping only the earliest one
+                cursor.execute(
+                    """
+                    DELETE FROM follower_changes
+                    WHERE id NOT IN (
+                        SELECT MIN(id)
+                        FROM follower_changes
+                        GROUP BY change_date, change_type, did
+                    )
+                """
+                )
+                deleted_count = cursor.rowcount
+                if deleted_count > 0:
+                    logger.info(f"Migration: removed {deleted_count} duplicate follower_changes entries")
+
+                # Then create the unique index
+                cursor.execute(
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_follower_changes_unique
+                    ON follower_changes(change_date, change_type, did)
+                """
+                )
+            except sqlite3.OperationalError:
+                pass  # Index already exists or table has constraint
 
             # Daily metrics
             cursor.execute(
@@ -560,12 +588,13 @@ class Database:
             prev_date = prev_row[0]
 
             # Detect unfollowers (in previous but not in current)
+            # Use INSERT OR IGNORE to prevent duplicates if detect_changes runs multiple times
             cursor.execute(
                 """
-                INSERT INTO follower_changes (change_date, change_type, did, handle)
+                INSERT OR IGNORE INTO follower_changes (change_date, change_type, did, handle)
                 SELECT ?, 'unfollowed', prev.did, prev.handle
                 FROM followers_snapshot prev
-                LEFT JOIN followers_snapshot curr 
+                LEFT JOIN followers_snapshot curr
                     ON prev.did = curr.did AND curr.collection_date = ?
                 WHERE prev.collection_date = ? AND curr.did IS NULL
             """,
@@ -574,12 +603,13 @@ class Database:
             unfollower_count = cursor.rowcount
 
             # Detect new followers
+            # Use INSERT OR IGNORE to prevent duplicates if detect_changes runs multiple times
             cursor.execute(
                 """
-                INSERT INTO follower_changes (change_date, change_type, did, handle)
+                INSERT OR IGNORE INTO follower_changes (change_date, change_type, did, handle)
                 SELECT ?, 'new_follower', curr.did, curr.handle
                 FROM followers_snapshot curr
-                LEFT JOIN followers_snapshot prev 
+                LEFT JOIN followers_snapshot prev
                     ON curr.did = prev.did AND prev.collection_date = ?
                 WHERE curr.collection_date = ? AND prev.did IS NULL
             """,

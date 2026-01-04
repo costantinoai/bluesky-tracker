@@ -241,7 +241,7 @@ def get_report_html(data):
             <div class="stat-card primary">
                 <div class="stat-header"><span class="stat-label">Followers</span><span class="stat-icon">👥</span></div>
                 <div class="stat-value">{stats.get('follower_count', 0)}{follower_change_badge}</div>
-                <div class="stat-change">Current count</div>
+                <div class="stat-change">{"Net change in last 30 days" if follower_change != 0 else "Current count"}</div>
             </div>
             <div class="stat-card secondary">
                 <div class="stat-header"><span class="stat-label">Following</span><span class="stat-icon">➕</span></div>
