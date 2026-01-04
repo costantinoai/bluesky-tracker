@@ -82,6 +82,48 @@ class BlueskyCollector:
             logger.error(f"Failed to resolve DID: {e}")
             raise
 
+    def fetch_car_data(self, did):
+        """
+        Fetch all data from CAR file in a single download.
+
+        This is the optimized approach - downloads once and returns all data.
+        Pass the result to other fetch_*_from_car methods to avoid redundant downloads.
+
+        Returns:
+            Dict with all CAR data including follows, likes, posts, blocks, reposts
+        """
+        try:
+            logger.info("=" * 60)
+            logger.info("CAR OPTIMIZATION: Starting single CAR download for all data")
+            logger.info(f"CAR OPTIMIZATION: DID = {did}")
+            logger.info("=" * 60)
+
+            import time as _time
+            start = _time.time()
+            car_data = self.car_client.get_all_data(did)
+            elapsed = _time.time() - start
+
+            car_size = car_data.get('car_size_bytes', 0)
+            counts = car_data.get('counts', {})
+
+            logger.info("=" * 60)
+            logger.info("CAR OPTIMIZATION: Download complete!")
+            logger.info(f"CAR OPTIMIZATION: Size = {car_size:,} bytes ({car_size/1024/1024:.2f} MB)")
+            logger.info(f"CAR OPTIMIZATION: Time = {elapsed:.2f} seconds")
+            logger.info(f"CAR OPTIMIZATION: Records found:")
+            logger.info(f"  - Follows:  {counts.get('app.bsky.graph.follow', 0):,}")
+            logger.info(f"  - Likes:    {counts.get('app.bsky.feed.like', 0):,}")
+            logger.info(f"  - Posts:    {counts.get('app.bsky.feed.post', 0):,}")
+            logger.info(f"  - Blocks:   {counts.get('app.bsky.graph.block', 0):,}")
+            logger.info(f"  - Reposts:  {counts.get('app.bsky.feed.repost', 0):,}")
+            logger.info("CAR OPTIMIZATION: This data will be reused (no more CAR downloads needed)")
+            logger.info("=" * 60)
+
+            return car_data
+        except Exception as e:
+            logger.error(f"CAR OPTIMIZATION: Failed to fetch CAR data: {e}")
+            raise
+
     def fetch_all_followers(self):
         """Fetch all followers using PUBLIC API (no auth needed)"""
         try:
@@ -105,12 +147,16 @@ class BlueskyCollector:
             logger.error(f"Error fetching followers: {e}")
             return []
 
-    def fetch_following_from_car(self, did):
+    def fetch_following_from_car(self, did, car_data=None):
         """
         Fetch following list using HYBRID approach:
         - Public API for profile info (handles, display names, avatars)
         - CAR file for timestamps (when the follow happened)
         No auth required!
+
+        Args:
+            did: User's DID
+            car_data: Pre-fetched CAR data from fetch_car_data(). If None, will download.
         """
         try:
             logger.info("Fetching following via hybrid approach (API + CAR)...")
@@ -119,14 +165,19 @@ class BlueskyCollector:
             api_follows = self.public_api.get_all_following(Config.BLUESKY_HANDLE)
             logger.info(f"Got {len(api_follows)} following from public API")
 
-            # Get timestamps from CAR file
-            car_follows = self.car_client.get_follows_with_timestamps(did)
-            logger.info(f"Got {len(car_follows)} following timestamps from CAR")
+            # Get timestamps from CAR data (use pre-fetched if available)
+            if car_data:
+                car_follows = car_data.get("follows", [])
+                logger.info(f"CAR REUSE: Using pre-fetched follows data ({len(car_follows)} records) - NO DOWNLOAD")
+            else:
+                logger.warning("CAR FALLBACK: No pre-fetched data, downloading CAR file...")
+                car_follows = self.car_client.get_follows_with_timestamps(did)
+                logger.info(f"Got {len(car_follows)} following timestamps from CAR")
 
             # Create a DID -> timestamp map from CAR data
             timestamp_map = {}
             for follow in car_follows:
-                follow_did = follow.get("did")
+                follow_did = follow.get("did") or follow.get("subject_did")
                 if follow_did:
                     timestamp_map[follow_did] = follow.get("created_at")
 
@@ -150,19 +201,30 @@ class BlueskyCollector:
             logger.error(f"Error fetching following: {e}")
             return []
 
-    def fetch_blocks_from_car(self, did):
+    def fetch_blocks_from_car(self, did, car_data=None):
         """
         Fetch blocks from CAR file (no auth needed!).
         Unlike the getBlocks API, this doesn't require authentication.
         Enriches with profile info from public API where possible.
+
+        Args:
+            did: User's DID
+            car_data: Pre-fetched CAR data from fetch_car_data(). If None, will download.
         """
         try:
             logger.info("Fetching blocks via CAR file (no auth needed)...")
-            blocks = self.car_client.get_blocks_from_repo(did)
+
+            # Get blocks from CAR data (use pre-fetched if available)
+            if car_data:
+                blocks = car_data.get("blocks", [])
+                logger.info(f"CAR REUSE: Using pre-fetched blocks data ({len(blocks)} records) - NO DOWNLOAD")
+            else:
+                logger.warning("CAR FALLBACK: No pre-fetched data, downloading CAR file...")
+                blocks = self.car_client.get_blocks_from_repo(did)
 
             blocked = []
             for block in blocks:
-                block_did = block.get("did")
+                block_did = block.get("did") or block.get("subject_did")
                 handle = ""
                 display_name = ""
                 avatar_url = ""
@@ -195,21 +257,32 @@ class BlueskyCollector:
             logger.error(f"Error fetching blocks from CAR: {e}")
             return []
 
-    def fetch_likes_given_from_car(self, did):
+    def fetch_likes_given_from_car(self, did, car_data=None):
         """
         Fetch likes given from CAR file (outgoing engagement).
         Returns list with URIs and timestamps of all likes you've given.
+
+        Args:
+            did: User's DID
+            car_data: Pre-fetched CAR data from fetch_car_data(). If None, will download.
         """
         try:
             logger.info("Fetching likes given via CAR file...")
-            likes = self.car_client.get_likes_with_timestamps(did)
+
+            # Get likes from CAR data (use pre-fetched if available)
+            if car_data:
+                likes = car_data.get("likes", [])
+                logger.info(f"CAR REUSE: Using pre-fetched likes data ({len(likes)} records) - NO DOWNLOAD")
+            else:
+                logger.warning("CAR FALLBACK: No pre-fetched data, downloading CAR file...")
+                likes = self.car_client.get_likes_with_timestamps(did)
 
             likes_data = []
             for like in likes:
                 subject_uri = like.get("subject_uri", "")
                 # Extract author DID from URI (at://did:plc:xxx/app.bsky.feed.post/xxx)
-                author_did = None
-                if subject_uri.startswith("at://"):
+                author_did = like.get("author_did")  # Already extracted in get_all_data
+                if not author_did and subject_uri.startswith("at://"):
                     parts = subject_uri[5:].split("/")
                     if parts:
                         author_did = parts[0]
@@ -228,22 +301,33 @@ class BlueskyCollector:
             logger.error(f"Error fetching likes from CAR: {e}")
             return []
 
-    def fetch_reposts_given_from_car(self, did):
+    def fetch_reposts_given_from_car(self, did, car_data=None):
         """
         Fetch reposts given from CAR file (outgoing engagement).
         Returns list with URIs and timestamps of all reposts you've made.
+
+        Args:
+            did: User's DID
+            car_data: Pre-fetched CAR data from fetch_car_data(). If None, will download.
         """
         try:
             logger.info("Fetching reposts given via CAR file...")
-            all_data = self.car_client.get_all_data(did)
-            reposts = all_data.get("reposts", [])
+
+            # Get reposts from CAR data (use pre-fetched if available)
+            if car_data:
+                reposts = car_data.get("reposts", [])
+                logger.info(f"CAR REUSE: Using pre-fetched reposts data ({len(reposts)} records) - NO DOWNLOAD")
+            else:
+                logger.warning("CAR FALLBACK: No pre-fetched data, downloading CAR file...")
+                all_data = self.car_client.get_all_data(did)
+                reposts = all_data.get("reposts", [])
 
             reposts_data = []
             for repost in reposts:
                 subject_uri = repost.get("subject_uri", "")
                 # Extract author DID from URI
-                author_did = None
-                if subject_uri.startswith("at://"):
+                author_did = repost.get("author_did")  # Already extracted in get_all_data
+                if not author_did and subject_uri.startswith("at://"):
                     parts = subject_uri[5:].split("/")
                     if parts:
                         author_did = parts[0]
@@ -262,15 +346,26 @@ class BlueskyCollector:
             logger.error(f"Error fetching reposts from CAR: {e}")
             return []
 
-    def fetch_posts_from_car(self, did):
+    def fetch_posts_from_car(self, did, car_data=None):
         """
         Fetch full post history from CAR file.
         Returns complete history, not just last 50 posts.
+
+        Args:
+            did: User's DID
+            car_data: Pre-fetched CAR data from fetch_car_data(). If None, will download.
         """
         try:
             logger.info("Fetching full post history via CAR file...")
-            all_data = self.car_client.get_all_data(did)
-            posts = all_data.get("posts", [])
+
+            # Get posts from CAR data (use pre-fetched if available)
+            if car_data:
+                posts = car_data.get("posts", [])
+                logger.info(f"CAR REUSE: Using pre-fetched posts data ({len(posts)} records) - NO DOWNLOAD")
+            else:
+                logger.warning("CAR FALLBACK: No pre-fetched data, downloading CAR file...")
+                all_data = self.car_client.get_all_data(did)
+                posts = all_data.get("posts", [])
 
             posts_data = []
             for post in posts:
@@ -452,13 +547,10 @@ class BlueskyCollector:
         try:
             logger.info(f"Starting CAR backfill for {did}...")
 
-            # Download CAR file (ONE API call for all data)
-            car_bytes = self.car_client.download_repo(did)
-            car_size = len(car_bytes)
-            logger.info(f"Downloaded CAR file: {car_size:,} bytes")
-
-            # Parse and extract all data
+            # Download and parse CAR file in ONE call (optimized)
             all_data = self.car_client.get_all_data(did)
+            car_size = all_data.get("car_size_bytes", 0)
+            logger.info(f"Downloaded CAR file: {car_size:,} bytes")
 
             stats = {
                 "follows": len(all_data.get("follows", [])),
@@ -576,7 +668,7 @@ class BlueskyCollector:
         Main collection job - run daily.
 
         Uses hybrid approach:
-        - CAR file for following/blocks/likes/reposts/posts (one API call, with timestamps)
+        - CAR file for following/blocks/likes/reposts/posts (ONE download, with timestamps)
         - Public API for followers/profile/engagement (no auth needed)
         - Authenticated API only for interactions (if auth enabled)
         """
@@ -600,24 +692,27 @@ class BlueskyCollector:
                 f"Collected {len(followers)} followers (API) vs {profile_counts['followers']} (profile)"
             )
 
-            # 4. Fetch following with timestamps from CAR file (no auth!)
-            following = self.fetch_following_from_car(did)
+            # 4. Download CAR file ONCE (optimized - single download for all CAR data)
+            car_data = self.fetch_car_data(did)
+
+            # 5. Fetch following with timestamps from CAR data (no additional download!)
+            following = self.fetch_following_from_car(did, car_data=car_data)
             logger.info(
                 f"Collected {len(following)} following (CAR with timestamps) vs {profile_counts['following']} (profile)"
             )
 
-            # 5. Fetch blocks from CAR file (no auth needed!)
-            blocked = self.fetch_blocks_from_car(did)
+            # 6. Fetch blocks from CAR data (no additional download!)
+            blocked = self.fetch_blocks_from_car(did, car_data=car_data)
 
-            # 6. Fetch engagement data (PUBLIC API - no auth)
+            # 7. Fetch engagement data (PUBLIC API - no auth)
             engagement_data = self.fetch_engagement_data()
 
-            # 7. Fetch outgoing engagement from CAR (likes/reposts given)
-            likes_given = self.fetch_likes_given_from_car(did)
-            reposts_given = self.fetch_reposts_given_from_car(did)
-            posts_full = self.fetch_posts_from_car(did)
+            # 8. Fetch outgoing engagement from CAR data (no additional downloads!)
+            likes_given = self.fetch_likes_given_from_car(did, car_data=car_data)
+            reposts_given = self.fetch_reposts_given_from_car(did, car_data=car_data)
+            posts_full = self.fetch_posts_from_car(did, car_data=car_data)
 
-            # 8. Save all data
+            # 9. Save all data
             # Save followers/following snapshot (following now has timestamps)
             self.db.save_snapshot(
                 collection_date, followers, following, profile_counts, None, blocked
@@ -641,7 +736,7 @@ class BlueskyCollector:
             if posts_full:
                 self.db.save_posts_from_car(posts_full)
 
-            # 9. Auth-only features (interactions)
+            # 10. Auth-only features (interactions)
             if self.auth_enabled:
                 self.authenticate()
                 interactions = self.fetch_interactions()
@@ -650,7 +745,7 @@ class BlueskyCollector:
             else:
                 logger.info("Auth disabled - skipping interactions feature")
 
-            # 10. Detect and record changes
+            # 11. Detect and record changes
             self.db.detect_changes(collection_date)
 
             # Calculate duration
