@@ -154,6 +154,7 @@ class BlueskyCollector:
         """
         Fetch blocks from CAR file (no auth needed!).
         Unlike the getBlocks API, this doesn't require authentication.
+        Enriches with profile info from public API where possible.
         """
         try:
             logger.info("Fetching blocks via CAR file (no auth needed)...")
@@ -161,12 +162,29 @@ class BlueskyCollector:
 
             blocked = []
             for block in blocks:
+                block_did = block.get("did")
+                handle = ""
+                display_name = ""
+                avatar_url = ""
+                bio = ""
+
+                # Try to get profile info from public API
+                try:
+                    profile = self.public_api.get_profile(block_did)
+                    handle = profile.get("handle", "")
+                    display_name = profile.get("displayName", "")
+                    avatar_url = profile.get("avatar", "")
+                    bio = profile.get("description", "")
+                except Exception:
+                    # Profile might not be accessible, use DID as fallback
+                    handle = block_did.split(":")[-1] if block_did else ""
+
                 blocked.append({
-                    "did": block.get("did"),
-                    "handle": "",  # Will be enriched later if needed
-                    "display_name": "",
-                    "avatar_url": "",
-                    "bio": "",
+                    "did": block_did,
+                    "handle": handle,
+                    "display_name": display_name,
+                    "avatar_url": avatar_url,
+                    "bio": bio,
                     "blocked_at": block.get("created_at"),
                 })
 
