@@ -2,12 +2,19 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install curl for healthcheck
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+# Install curl for healthcheck and build dependencies for cffi
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    gcc \
+    libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy and install dependencies
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Remove build dependencies to reduce image size
+RUN apt-get update && apt-get remove -y gcc && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 # Copy application files
 COPY app.py collector.py database.py config.py templates.py car_utils.py public_api.py ./
