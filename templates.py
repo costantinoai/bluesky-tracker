@@ -107,9 +107,8 @@ def get_report_html(data):
         .auth-badge {{ display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px;
                        border-radius: 28px; font-size: 13px; font-weight: 500;
                        background: var(--md-success-container); color: var(--md-success); }}
-        .stats-grid {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px; }}
-        @media (max-width: 1200px) {{ .stats-grid {{ grid-template-columns: repeat(5, 1fr); }} }}
-        @media (max-width: 900px) {{ .stats-grid {{ grid-template-columns: repeat(3, 1fr); }} }}
+        .stats-grid {{ display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 24px; }}
+        @media (max-width: 1000px) {{ .stats-grid {{ grid-template-columns: repeat(3, 1fr); }} }}
         @media (max-width: 600px) {{ .stats-grid {{ grid-template-columns: repeat(2, 1fr); }} }}
         .stat-card {{ background: white; border-radius: 16px; padding: 24px; box-shadow: var(--md-elevation-1);
                       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; cursor: pointer; }}
