@@ -26,7 +26,7 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64,linux/arm64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -63,7 +63,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -82,7 +82,6 @@ jobs:
           echo "### Platforms" >> $GITHUB_STEP_SUMMARY
           echo "- linux/amd64 (Intel/AMD servers, Intel Macs)" >> $GITHUB_STEP_SUMMARY
           echo "- linux/arm64 (ARM servers, M1/M2 Macs, Raspberry Pi 4/5)" >> $GITHUB_STEP_SUMMARY
-          echo "- linux/arm/v7 (Raspberry Pi 3 and older)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Quick Start" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
