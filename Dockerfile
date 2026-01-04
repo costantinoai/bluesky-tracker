@@ -5,11 +5,12 @@ WORKDIR /app
 # Install curl for healthcheck
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
-RUN pip install --no-cache-dir     flask     requests     prometheus-client     apscheduler     pytz     gunicorn
+# Copy and install dependencies
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
-COPY app.py collector.py database.py config.py templates.py ./
+COPY app.py collector.py database.py config.py templates.py car_utils.py public_api.py ./
 
 # Create data directory
 RUN mkdir -p /app/data
