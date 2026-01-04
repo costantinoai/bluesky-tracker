@@ -641,6 +641,7 @@ class Database:
                     "follower_count": 0,
                     "following_count": 0,
                     "unfollowers_30d": 0,
+                    "new_followers_30d": 0,
                     "non_mutual_following": 0,
                     "followers_only": 0,
                 }
@@ -661,6 +662,16 @@ class Database:
                 (cutoff_date,),
             )
             unfollowers_30d = cursor.fetchone()[0]
+
+            # New followers in last N days
+            cursor.execute(
+                """
+                SELECT COUNT(*) FROM follower_changes
+                WHERE change_type = 'new_follower' AND change_date > ?
+            """,
+                (cutoff_date,),
+            )
+            new_followers_30d = cursor.fetchone()[0]
 
             # Non-mutual following (you follow but they don't follow back)
             cursor.execute(
@@ -688,6 +699,7 @@ class Database:
                 "follower_count": follower_count,
                 "following_count": following_count,
                 "unfollowers_30d": unfollowers_30d,
+                "new_followers_30d": new_followers_30d,
                 "non_mutual_following": non_mutual_following,
                 "followers_only": followers_only,
             }
@@ -1859,30 +1871,84 @@ class Database:
                 cursor.execute("SELECT COUNT(*) FROM posts_full WHERE is_reply = 1")
             replies_given = cursor.fetchone()[0] or 0
 
-            # Received engagement (from post_engagement or daily_engagement_metrics)
-            cursor.execute("SELECT MAX(collection_date) FROM post_engagement")
-            latest_date = cursor.fetchone()[0]
-
-            likes_received = 0
-            reposts_received = 0
-            replies_received = 0
-
-            if latest_date:
+            # Received engagement - use same logic as engagement timeline
+            # This calculates engagement received within the time period
+            if days:
+                # Sum engagement from posts within the time period using same query as timeline
                 cursor.execute(
                     """
                     SELECT
-                        COALESCE(SUM(like_count), 0),
-                        COALESCE(SUM(repost_count), 0),
-                        COALESCE(SUM(reply_count), 0)
-                    FROM post_engagement
-                    WHERE collection_date = ?
+                        COALESCE(SUM(total_likes), 0),
+                        COALESCE(SUM(total_reposts), 0),
+                        COALESCE(SUM(total_replies), 0)
+                    FROM (
+                        -- Part 1: Initial engagement from first collection -> use post creation date
+                        SELECT
+                            DATE(pe.created_at) as engagement_date,
+                            pe.like_count + COALESCE(pe.indirect_likes, 0) as total_likes,
+                            pe.repost_count + COALESCE(pe.indirect_reposts, 0) as total_reposts,
+                            pe.reply_count + COALESCE(pe.indirect_replies, 0) as total_replies
+                        FROM post_engagement pe
+                        WHERE pe.created_at IS NOT NULL
+                        AND pe.collection_date = (
+                            SELECT MIN(pe2.collection_date)
+                            FROM post_engagement pe2
+                            WHERE pe2.post_uri = pe.post_uri
+                        )
+
+                        UNION ALL
+
+                        -- Part 2: Engagement deltas from subsequent collections -> use collection date
+                        SELECT
+                            curr.collection_date as engagement_date,
+                            MAX(0, (curr.like_count + COALESCE(curr.indirect_likes, 0)) -
+                                (prev.like_count + COALESCE(prev.indirect_likes, 0))) as total_likes,
+                            MAX(0, (curr.repost_count + COALESCE(curr.indirect_reposts, 0)) -
+                                (prev.repost_count + COALESCE(prev.indirect_reposts, 0))) as total_reposts,
+                            MAX(0, (curr.reply_count + COALESCE(curr.indirect_replies, 0)) -
+                                (prev.reply_count + COALESCE(prev.indirect_replies, 0))) as total_replies
+                        FROM post_engagement curr
+                        INNER JOIN post_engagement prev
+                            ON curr.post_uri = prev.post_uri
+                            AND prev.collection_date = (
+                                SELECT MAX(p.collection_date)
+                                FROM post_engagement p
+                                WHERE p.post_uri = curr.post_uri
+                                AND p.collection_date < curr.collection_date
+                            )
+                        WHERE curr.collection_date > (
+                            SELECT MIN(pe3.collection_date)
+                            FROM post_engagement pe3
+                            WHERE pe3.post_uri = curr.post_uri
+                        )
+                    ) subquery
+                    WHERE engagement_date >= date('now', '-' || ? || ' days')
                     """,
-                    (latest_date,),
+                    (days,),
                 )
-                row = cursor.fetchone()
-                likes_received = row[0]
-                reposts_received = row[1]
-                replies_received = row[2]
+            else:
+                # All time - just sum latest snapshot
+                cursor.execute("SELECT MAX(collection_date) FROM post_engagement")
+                latest_date = cursor.fetchone()[0]
+                if latest_date:
+                    cursor.execute(
+                        """
+                        SELECT
+                            COALESCE(SUM(like_count + COALESCE(indirect_likes, 0)), 0),
+                            COALESCE(SUM(repost_count + COALESCE(indirect_reposts, 0)), 0),
+                            COALESCE(SUM(reply_count + COALESCE(indirect_replies, 0)), 0)
+                        FROM post_engagement
+                        WHERE collection_date = ?
+                        """,
+                        (latest_date,),
+                    )
+                else:
+                    cursor.execute("SELECT 0, 0, 0")
+
+            row = cursor.fetchone()
+            likes_received = row[0] or 0
+            reposts_received = row[1] or 0
+            replies_received = row[2] or 0
 
             # Calculate totals and ratio
             total_given = likes_given + reposts_given + replies_given
