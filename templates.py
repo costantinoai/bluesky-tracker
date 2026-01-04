@@ -22,6 +22,17 @@ def get_report_html(data):
     bluesky_handle = data.get("bluesky_handle", "your-handle.bsky.social")
     auth_enabled = data.get("auth_enabled", True)  # For showing auth status
 
+    # Calculate follower change badge (30d)
+    new_followers = stats.get("new_followers_30d", 0)
+    lost_followers = stats.get("unfollowers_30d", 0)
+    follower_change = new_followers - lost_followers
+    if follower_change > 0:
+        follower_change_badge = f'<span class="change-badge positive">+{follower_change}</span>'
+    elif follower_change < 0:
+        follower_change_badge = f'<span class="change-badge negative">{follower_change}</span>'
+    else:
+        follower_change_badge = ''
+
     # Helper function for user cards with hiding capability
     def user_card(user, meta_text="", show_bio=True, index=0):
         handle = user.get("handle", "")
@@ -107,7 +118,7 @@ def get_report_html(data):
         .auth-badge {{ display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px;
                        border-radius: 28px; font-size: 13px; font-weight: 500;
                        background: var(--md-success-container); color: var(--md-success); }}
-        .stats-grid {{ display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 24px; }}
+        .stats-grid {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }}
         @media (max-width: 1000px) {{ .stats-grid {{ grid-template-columns: repeat(3, 1fr); }} }}
         @media (max-width: 600px) {{ .stats-grid {{ grid-template-columns: repeat(2, 1fr); }} }}
         .stat-card {{ background: white; border-radius: 16px; padding: 24px; box-shadow: var(--md-elevation-1);
@@ -126,7 +137,11 @@ def get_report_html(data):
         .stat-label {{ font-size: 13px; font-weight: 500; color: var(--md-on-surface-variant);
                        text-transform: uppercase; letter-spacing: 0.5px; }}
         .stat-icon {{ font-size: 24px; }}
-        .stat-value {{ font-size: 36px; font-weight: 700; color: var(--md-on-surface); line-height: 1; }}
+        .stat-value {{ font-size: 36px; font-weight: 700; color: var(--md-on-surface); line-height: 1; display: flex; align-items: baseline; gap: 8px; }}
+        .stat-value .change-badge {{ font-size: 14px; font-weight: 600; padding: 2px 8px; border-radius: 12px; }}
+        .stat-value .change-badge.positive {{ background: var(--md-success-container); color: var(--md-success); }}
+        .stat-value .change-badge.negative {{ background: var(--md-error-container); color: var(--md-error); }}
+        .stat-value .change-badge.neutral {{ display: none; }}
         .stat-change {{ font-size: 13px; color: var(--md-on-surface-variant); margin-top: 4px; }}
         .section-card {{ background: white; border-radius: 16px; margin-bottom: 16px;
                          box-shadow: var(--md-elevation-1); overflow: hidden; transition: box-shadow 0.3s ease; }}
@@ -154,6 +169,10 @@ def get_report_html(data):
         .user-card.hidden-card {{ display: none; }}
         .user-card:hover {{ border-color: var(--md-primary); background: var(--md-primary-container);
                            transform: translateX(4px); }}
+        .interactor-card {{ background: white; border: 1px solid var(--md-outline-variant); border-radius: 12px;
+                           padding: 16px; display: flex; gap: 16px; transition: all 0.2s ease; cursor: pointer; }}
+        .interactor-card:hover {{ border-color: var(--md-primary); background: var(--md-primary-container);
+                                 transform: translateX(4px); }}
         .user-avatar img {{ width: 56px; height: 56px; border-radius: 50%; object-fit: cover;
                            border: 2px solid var(--md-outline-variant); }}
         .user-content {{ flex: 1; min-width: 0; }}
@@ -221,7 +240,7 @@ def get_report_html(data):
         <div class="stats-grid">
             <div class="stat-card primary">
                 <div class="stat-header"><span class="stat-label">Followers</span><span class="stat-icon">👥</span></div>
-                <div class="stat-value">{stats.get('follower_count', 0)}</div>
+                <div class="stat-value">{stats.get('follower_count', 0)}{follower_change_badge}</div>
                 <div class="stat-change">Current count</div>
             </div>
             <div class="stat-card secondary">
@@ -238,11 +257,6 @@ def get_report_html(data):
                 <div class="stat-header"><span class="stat-label">Not Following Back</span><span class="stat-icon">🚫</span></div>
                 <div class="stat-value">{stats.get('non_mutual_following', 0)}</div>
                 <div class="stat-change">You follow, they don't</div>
-            </div>
-            <div class="stat-card error">
-                <div class="stat-header"><span class="stat-label">Unfollowers (30d)</span><span class="stat-icon">💔</span></div>
-                <div class="stat-value">{stats.get('unfollowers_30d', 0)}</div>
-                <div class="stat-change">Last 30 days</div>
             </div>
             <div class="stat-card secondary">
                 <div class="stat-header"><span class="stat-label">They Follow, You Don't</span><span class="stat-icon">👤</span></div>
@@ -1591,7 +1605,7 @@ async function loadTopInteractors(days) {
             if (follows > 0) badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #BBDEFB; color: #1976D2; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">person_add</span>${follows}</span>`;
 
             html += `
-                <div style="background: white; border: 1px solid #CAC4D0; border-radius: 12px; padding: 16px; display: flex; gap: 16px; transition: all 0.2s; cursor: pointer;" onclick="window.open('${profileUrl}', '_blank')">
+                <div class="interactor-card" onclick="window.open('${profileUrl}', '_blank')">
                     ${avatarHtml}
                     <div style="flex: 1;">
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
