@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN apt-get update && apt-get remove -y gcc && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 # Copy application files
-COPY app.py wsgi.py locks.py collector.py database.py config.py templates.py car_utils.py public_api.py ./
+COPY app.py wsgi.py locks.py collector.py database.py config.py templates.py car_utils.py public_api.py time_utils.py http_client.py ./
 
 # Create data directory
 RUN mkdir -p /app/data
