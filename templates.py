@@ -2,6 +2,10 @@
 Modern Material Design 3 HTML templates for Bluesky Tracker with Expandable Lists
 """
 
+import html
+import json
+from urllib.parse import quote
+
 
 def get_report_html(data):
     """Generate modern Material Design 3 report page with expandable user lists"""
@@ -22,6 +26,22 @@ def get_report_html(data):
     bluesky_handle = data.get("bluesky_handle", "your-handle.bsky.social")
     auth_enabled = data.get("auth_enabled", True)  # For showing auth status
 
+    def esc_text(value):
+        return html.escape("" if value is None else str(value))
+
+    def esc_attr(value):
+        return html.escape("" if value is None else str(value), quote=True)
+
+    def safe_http_url(url):
+        if not url:
+            return ""
+        url = str(url).strip()
+        if url.startswith("https://") or url.startswith("http://"):
+            return url
+        return ""
+
+    bluesky_handle_js = json.dumps(str(bluesky_handle or ""))
+
     # Calculate follower change badge (30d)
     new_followers = stats.get("new_followers_30d", 0)
     lost_followers = stats.get("unfollowers_30d", 0)
@@ -35,33 +55,36 @@ def get_report_html(data):
 
     # Helper function for user cards with hiding capability
     def user_card(user, meta_text="", show_bio=True, index=0):
-        handle = user.get("handle", "")
-        display_name = user.get("display_name", handle)
-        avatar_url = user.get("avatar_url", "")
-        bio = user.get("bio", "")
+        handle_raw = user.get("handle", "") or ""
+        display_name_raw = user.get("display_name") or handle_raw
+        avatar_url_raw = safe_http_url(user.get("avatar_url", ""))
+        bio_raw = user.get("bio", "") or ""
 
         avatar_html = ""
-        if avatar_url and avatar_url.strip():
-            avatar_html = f'<div class="user-avatar"><img src="{avatar_url}" alt="{display_name}" onerror="this.style.display=\'none\'"></div>'
+        if avatar_url_raw and avatar_url_raw.strip():
+            avatar_html = (
+                f'<div class="user-avatar"><img src="{esc_attr(avatar_url_raw)}" '
+                f'alt="{esc_attr(display_name_raw)}" onerror="this.style.display=\'none\'"></div>'
+            )
 
         bio_html = ""
-        if show_bio and bio:
-            bio_truncated = bio[:120] + ("..." if len(bio) > 120 else "")
-            bio_html = f'<p class="user-bio">{bio_truncated}</p>'
+        if show_bio and bio_raw:
+            bio_truncated = bio_raw[:120] + ("..." if len(bio_raw) > 120 else "")
+            bio_html = f'<p class="user-bio">{esc_text(bio_truncated)}</p>'
 
-        meta_html = f'<span class="user-meta">{meta_text}</span>' if meta_text else ""
+        meta_html = f'<span class="user-meta">{esc_text(meta_text)}</span>' if meta_text else ""
         hidden_class = " hidden-card" if index >= 50 else ""
 
-        profile_url = f"https://bsky.app/profile/{handle}"
+        profile_url = f"https://bsky.app/profile/{quote(handle_raw, safe='')}"
 
-        return f"""<div class="user-card{hidden_class}" onclick="window.open('{profile_url}', '_blank')">
+        return f"""<div class="user-card{hidden_class}" onclick="window.open('{esc_attr(profile_url)}', '_blank')">
             {avatar_html}
             <div class="user-content">
                 <div class="user-header">
-                    <h4 class="user-name">{display_name}</h4>
+                    <h4 class="user-name">{esc_text(display_name_raw)}</h4>
                     {meta_html}
                 </div>
-                <p class="user-handle">@{handle}</p>
+                <p class="user-handle">@{esc_text(handle_raw)}</p>
                 {bio_html}
             </div>
             <div class="user-action">
@@ -217,14 +240,14 @@ def get_report_html(data):
             <div class="header-content">
                 <div class="header-left">
                     <div class="avatar-large" style="font-size: 32px;">📈</div>
-                    <div class="header-text">
-                        <h1>Bluesky Analytics</h1>
-                        <p>@{bluesky_handle}</p>
+                        <div class="header-text">
+                            <h1>Bluesky Analytics</h1>
+                        <p>@{esc_text(bluesky_handle)}</p>
+                        </div>
                     </div>
-                </div>
                 <div style="display: flex; align-items: center; gap: 16px;">
                     <div style="font-size: 13px; color: #49454F;">
-                        Last updated: <span id="last-updated">{last_updated}</span>
+                        Last updated: <span id="last-updated">{esc_text(last_updated)}</span>
                     </div>
                     <button id="refresh-btn" onclick="refreshData()" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: #1976D2; color: white; border: none; border-radius: 24px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
                         <span class="material-icons" style="font-size: 18px;">sync</span>
@@ -605,10 +628,11 @@ def get_report_html(data):
                 display_name = user.get("display_name", user.get("handle"))
                 handle = user.get("handle", "")
                 bio = user.get("bio", "")[:100]
+                safe_profile_url = f"https://bsky.app/profile/{quote(str(handle or ''), safe='')}"
                 html += f"""
-                        <div class="card" style="margin-bottom: 8px; cursor: pointer;" onclick="window.open('https://bsky.app/profile/{handle}', '_blank')">
-                            <strong>{display_name}</strong> <span style="color: var(--md-on-surface-variant);">@{handle}</span>
-                            {f'<p style="font-size: 13px; color: var(--md-on-surface-variant); margin-top: 4px;">{bio}</p>' if bio else ''}
+                        <div class="card" style="margin-bottom: 8px; cursor: pointer;" onclick="window.open('{esc_attr(safe_profile_url)}', '_blank')">
+                            <strong>{esc_text(display_name)}</strong> <span style="color: var(--md-on-surface-variant);">@{esc_text(handle)}</span>
+                            {f'<p style="font-size: 13px; color: var(--md-on-surface-variant); margin-top: 4px;">{esc_text(bio)}</p>' if bio else ''}
                         </div>
 """
             html += """
@@ -1418,15 +1442,41 @@ async function loadEngagementBreakdownChart(days) {
 // AJAX-LOADED SECTIONS
 // ========================================================================
 
-const blueskyHandle = '""" + bluesky_handle + """';
+const blueskyHandle = """ + bluesky_handle_js + """;
 let userAvatarUrl = null;
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function sanitizeUrl(value) {
+    const url = String(value ?? '').trim();
+    if (!url) return '';
+    try {
+        const parsed = new URL(url, window.location.href);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+            return parsed.toString();
+        }
+    } catch (_) {}
+    return '';
+}
+
+function getInitial(value) {
+    const s = String(value ?? '').trim();
+    return escapeHtml((s[0] || '?').toUpperCase());
+}
 
 // Fetch user avatar on page load
 async function fetchUserAvatar() {
     try {
-        const response = await fetch(`https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${blueskyHandle}`);
+        const response = await fetch(`https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(blueskyHandle)}`);
         const data = await response.json();
-        userAvatarUrl = data.avatar || null;
+        userAvatarUrl = sanitizeUrl(data.avatar) || null;
     } catch (e) {
         console.log('Could not fetch avatar:', e);
     }
@@ -1459,8 +1509,10 @@ async function loadTopPosts(days) {
             const engagementScore = Math.round(directScore + indirectScore);
 
             const postId = post.uri ? post.uri.split('/').pop() : '';
-            const postUrl = postId ? `https://bsky.app/profile/${blueskyHandle}/post/${postId}` : '#';
-            const postText = (post.text || '').replace(/'/g, "\\\\'").replace(/"/g, '&quot;');
+            const postUrl = postId ? `https://bsky.app/profile/${encodeURIComponent(blueskyHandle)}/post/${encodeURIComponent(postId)}` : '#';
+            const postText = escapeHtml(post.text || '');
+            const handleHtml = escapeHtml(blueskyHandle);
+            const safeAvatarUrl = userAvatarUrl ? escapeHtml(userAvatarUrl) : '';
 
             let formattedDate = 'Unknown date';
             if (post.created_at) {
@@ -1472,6 +1524,8 @@ async function loadTopPosts(days) {
                 }
             }
 
+            const formattedDateHtml = escapeHtml(formattedDate);
+
             const totalIndirect = (post.indirect_likes || 0) + (post.indirect_reposts || 0) + (post.indirect_replies || 0) + (post.indirect_bookmarks || 0);
             const indirectBadge = totalIndirect > 0 ?
                 `<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #E1F5FE; border-radius: 12px; font-size: 13px;" title="Indirect Engagement from quote posts"><span class="material-icons" style="font-size: 16px; color: #0277BD;">add_circle</span><span style="font-weight: 500; color: #0277BD;">+${totalIndirect} indirect</span></div>` : '';
@@ -1480,14 +1534,14 @@ async function loadTopPosts(days) {
                 <div class="post-card" onclick="window.open('${postUrl}', '_blank')" style="background: white; border: 1px solid #E0E0E0; border-radius: 12px; padding: 0; margin-bottom: 16px; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden;">
                     <div style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px 16px;">
                         ${userAvatarUrl
-                            ? `<img src="${userAvatarUrl}" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" alt="avatar">`
-                            : `<div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #1976D2, #0288D1); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 20px; flex-shrink: 0;">${blueskyHandle[0].toUpperCase()}</div>`
+                            ? `<img src="${safeAvatarUrl}" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" alt="avatar" onerror="this.style.display='none'">`
+                            : `<div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #1976D2, #0288D1); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 20px; flex-shrink: 0;">${getInitial(blueskyHandle)}</div>`
                         }
                         <div style="flex: 1; min-width: 0;">
-                            <div style="font-weight: 600; font-size: 15px; color: #1C1B1F;">@${blueskyHandle}</div>
+                            <div style="font-weight: 600; font-size: 15px; color: #1C1B1F;">@${handleHtml}</div>
                             <div style="font-size: 14px; color: #666;">Tracked Account</div>
                         </div>
-                        <div style="font-size: 13px; color: #999;">${formattedDate}</div>
+                        <div style="font-size: 13px; color: #999;">${formattedDateHtml}</div>
                     </div>
                     <div style="padding: 0 16px 12px 16px;">
                         <div style="font-size: 15px; color: #1C1B1F; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;">${postText}</div>
@@ -1535,21 +1589,28 @@ async function loadUnfollowers(days) {
             const displayName = user.display_name || handle;
             const avatarUrl = user.avatar || '';
             const changeDate = user.change_date || '';
-            const profileUrl = `https://bsky.app/profile/${handle}`;
+            const profileUrl = `https://bsky.app/profile/${encodeURIComponent(handle)}`;
+            const handleHtml = escapeHtml(handle);
+            const displayNameHtml = escapeHtml(displayName);
+            const changeDateHtml = escapeHtml(changeDate);
+            const initial = getInitial(displayName);
+            const safeAvatarUrl = sanitizeUrl(avatarUrl);
 
-            const avatarHtml = avatarUrl ?
-                `<div class="user-avatar"><img src="${avatarUrl}" alt="${displayName}" onerror="this.parentNode.innerHTML='<div style=\\'width:56px;height:56px;border-radius:50%;background:#CAC4D0;display:flex;align-items:center;justify-content:center;font-size:24px;color:#666;\\'>${displayName[0] || '?'}</div>'" loading="lazy"></div>` :
-                `<div class="user-avatar"><div style="width:56px;height:56px;border-radius:50%;background:#CAC4D0;display:flex;align-items:center;justify-content:center;font-size:24px;color:#666;">${displayName[0] || '?'}</div></div>`;
+            const avatarHtml = `
+                <div class="user-avatar">
+                    ${safeAvatarUrl ? `<img src="${escapeHtml(safeAvatarUrl)}" alt="${displayNameHtml}" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : ''}
+                    <div style="width:56px;height:56px;border-radius:50%;background:#CAC4D0;display:${safeAvatarUrl ? 'none' : 'flex'};align-items:center;justify-content:center;font-size:24px;color:#666;">${initial}</div>
+                </div>`;
 
             html += `
                 <div class="user-card" onclick="window.open('${profileUrl}', '_blank')">
                     ${avatarHtml}
                     <div class="user-content">
                         <div class="user-header">
-                            <span class="user-name">${displayName}</span>
-                            ${changeDate ? `<span class="user-meta">${changeDate}</span>` : ''}
+                            <span class="user-name">${displayNameHtml}</span>
+                            ${changeDate ? `<span class="user-meta">${changeDateHtml}</span>` : ''}
                         </div>
-                        <div class="user-handle">@${handle}</div>
+                        <div class="user-handle">@${handleHtml}</div>
                     </div>
                     <div class="user-action"><span class="material-icons">open_in_new</span></div>
                 </div>`;
@@ -1592,10 +1653,13 @@ async function loadTopInteractors(days) {
             const reposts = interactor.reposts || 0;
             const quotes = interactor.quotes || 0;
             const follows = interactor.follows || 0;
-            const profileUrl = `https://bsky.app/profile/${handle}`;
+            const profileUrl = `https://bsky.app/profile/${encodeURIComponent(handle)}`;
+            const handleHtml = escapeHtml(handle);
+            const displayNameHtml = escapeHtml(displayName);
+            const safeAvatarUrl = sanitizeUrl(avatarUrl);
 
-            const avatarHtml = avatarUrl ?
-                `<div style="width: 56px; height: 56px;"><img src="${avatarUrl}" alt="${displayName}" style="width: 56px; height: 56px; border-radius: 50%; object-fit: cover;" onerror="this.parentNode.style.display='none'" loading="lazy"></div>` : '';
+            const avatarHtml = safeAvatarUrl ?
+                `<div style="width: 56px; height: 56px;"><img src="${escapeHtml(safeAvatarUrl)}" alt="${displayNameHtml}" style="width: 56px; height: 56px; border-radius: 50%; object-fit: cover;" onerror="this.parentNode.style.display='none'" loading="lazy"></div>` : '';
 
             let badgesHtml = '';
             if (likes > 0) badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #E3F2FD; color: #1976D2;"><span class="material-icons" style="font-size: 14px;">favorite</span>${likes}</span>`;
@@ -1609,10 +1673,10 @@ async function loadTopInteractors(days) {
                     ${avatarHtml}
                     <div style="flex: 1;">
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                            <div style="font-weight: 600; color: #1C1B1F; font-size: 15px;">${displayName}</div>
+                            <div style="font-weight: 600; color: #1C1B1F; font-size: 15px;">${displayNameHtml}</div>
                             <div style="background: #1976D2; color: white; padding: 4px 12px; border-radius: 12px; font-size: 13px; font-weight: 600;">${score}</div>
                         </div>
-                        <div style="color: #49454F; font-size: 14px; margin-bottom: 12px;">@${handle}</div>
+                        <div style="color: #49454F; font-size: 14px; margin-bottom: 12px;">@${handleHtml}</div>
                         <div style="display: flex; gap: 4px; flex-wrap: wrap;">${badgesHtml}</div>
                     </div>
                 </div>`;
