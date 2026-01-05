@@ -815,19 +815,16 @@ def api_net_growth():
         with db.get_connection() as conn:
             cursor = conn.cursor()
 
-            # Calculate net changes from follower_changes table
+            # Calculate net changes from daily metrics (delta vs previous day)
             cursor.execute(
                 """
                 SELECT
-                    change_date,
-                    SUM(CASE WHEN change_type = 'new_follower' THEN 1 ELSE 0 END) -
-                    SUM(CASE WHEN change_type = 'unfollower' THEN 1 ELSE 0 END) as net_followers,
-                    SUM(CASE WHEN change_type = 'new_following' THEN 1 ELSE 0 END) -
-                    SUM(CASE WHEN change_type = 'unfollowing' THEN 1 ELSE 0 END) as net_following
-                FROM follower_changes
-                WHERE change_date >= date('now', '-' || ? || ' days')
-                GROUP BY change_date
-                ORDER BY change_date ASC
+                    metric_date,
+                    follower_count - COALESCE(LAG(follower_count) OVER (ORDER BY metric_date), follower_count) AS net_followers,
+                    following_count - COALESCE(LAG(following_count) OVER (ORDER BY metric_date), following_count) AS net_following
+                FROM daily_metrics
+                WHERE metric_date >= date('now', '-' || ? || ' days')
+                ORDER BY metric_date ASC
             """,
                 (days,),
             )
