@@ -1009,7 +1009,6 @@ function initCharts() {
     // Check if canvas elements exist
     const canvases = [
         'followerGrowthChart',
-        'netGrowthChart',
         'engagementTimelineChart',
         'postingFrequencyChart',
         'engagementBreakdownChart'
