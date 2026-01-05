@@ -8,12 +8,12 @@ Hybrid approach using:
 """
 
 import time
-import requests
 from datetime import date, datetime
 from config import Config
 from database import Database
 from car_utils import CARClient
 from public_api import PublicAPIClient
+from http_client import create_retrying_session
 import logging
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,10 @@ class BlueskyCollector:
         self.auth_enabled = Config.AUTH_ENABLED
         self.car_client = CARClient()
         self.public_api = PublicAPIClient()
+        self.http = create_retrying_session(
+            max_retries=Config.MAX_RETRIES,
+            backoff_factor=Config.RETRY_BACKOFF_FACTOR,
+        )
         self.user_did = None
 
     def authenticate(self):
@@ -38,13 +42,13 @@ class BlueskyCollector:
         try:
             logger.info("Authenticating with app password...")
 
-            response = requests.post(
+            response = self.http.post(
                 f"{Config.BLUESKY_API_URL}/xrpc/com.atproto.server.createSession",
                 json={
                     "identifier": Config.BLUESKY_HANDLE,
                     "password": Config.BLUESKY_APP_PASSWORD,
                 },
-                timeout=30,
+                timeout=Config.HTTP_TIMEOUT,
             )
             response.raise_for_status()
             data = response.json()
@@ -457,11 +461,11 @@ class BlueskyCollector:
 
         try:
             # Fetch notifications (last 100)
-            response = requests.get(
+            response = self.http.get(
                 f"{Config.BLUESKY_API_URL}/xrpc/app.bsky.notification.listNotifications",
                 params={"limit": 100},
                 headers=self.get_auth_headers(),
-                timeout=30,
+                timeout=Config.HTTP_TIMEOUT,
             )
             response.raise_for_status()
             data = response.json()

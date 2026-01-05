@@ -18,14 +18,17 @@ from typing import Dict, List, Optional, Any
 
 import requests
 
+from config import Config
+from http_client import create_retrying_session
+
 logger = logging.getLogger(__name__)
 
 # Public API endpoint (no auth required)
 PUBLIC_API_URL = "https://public.api.bsky.app"
 
 # Rate limiting
-DEFAULT_DELAY = 0.5  # Seconds between requests
-DEFAULT_TIMEOUT = 30
+DEFAULT_DELAY = Config.REQUEST_DELAY  # Seconds between requests
+DEFAULT_TIMEOUT = Config.HTTP_TIMEOUT
 
 
 class PublicAPIClient:
@@ -41,11 +44,15 @@ class PublicAPIClient:
         base_url: str = PUBLIC_API_URL,
         delay: float = DEFAULT_DELAY,
         timeout: int = DEFAULT_TIMEOUT,
+        session: Optional[requests.Session] = None,
     ):
         self.base_url = base_url
         self.delay = delay
         self.timeout = timeout
-        self.session = requests.Session()
+        self.session = session or create_retrying_session(
+            max_retries=Config.MAX_RETRIES,
+            backoff_factor=Config.RETRY_BACKOFF_FACTOR,
+        )
         self._last_request_time = 0
 
     def _rate_limit(self):

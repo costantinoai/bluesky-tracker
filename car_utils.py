@@ -20,19 +20,30 @@ from functools import lru_cache
 
 import requests
 
+from config import Config
+from http_client import create_retrying_session
+
 logger = logging.getLogger(__name__)
 
 # Constants
 PLC_DIRECTORY_URL = "https://plc.directory"
-DEFAULT_TIMEOUT = 120  # CAR files can be large
+DEFAULT_TIMEOUT = Config.CAR_DOWNLOAD_TIMEOUT  # CAR files can be large
 
 
 class PDSResolver:
     """Resolve DIDs to their Personal Data Server endpoints."""
 
-    def __init__(self, plc_directory_url: str = PLC_DIRECTORY_URL):
+    def __init__(
+        self,
+        plc_directory_url: str = PLC_DIRECTORY_URL,
+        session: Optional[requests.Session] = None,
+    ):
         self.plc_directory_url = plc_directory_url
         self._cache: Dict[str, str] = {}
+        self.session = session or create_retrying_session(
+            max_retries=Config.MAX_RETRIES,
+            backoff_factor=Config.RETRY_BACKOFF_FACTOR,
+        )
 
     def resolve_handle_to_did(self, handle: str) -> str:
         """
@@ -49,7 +60,7 @@ class PDSResolver:
         params = {"handle": handle}
 
         try:
-            response = requests.get(url, params=params, timeout=30)
+            response = self.session.get(url, params=params, timeout=Config.HTTP_TIMEOUT)
             response.raise_for_status()
             data = response.json()
             return data["did"]
@@ -87,7 +98,7 @@ class PDSResolver:
         url = f"{self.plc_directory_url}/{did}"
 
         try:
-            response = requests.get(url, timeout=30)
+            response = self.session.get(url, timeout=Config.HTTP_TIMEOUT)
             response.raise_for_status()
             doc = response.json()
 
@@ -109,7 +120,7 @@ class PDSResolver:
         url = f"https://{domain}/.well-known/did.json"
 
         try:
-            response = requests.get(url, timeout=30)
+            response = self.session.get(url, timeout=Config.HTTP_TIMEOUT)
             response.raise_for_status()
             doc = response.json()
 
@@ -139,7 +150,10 @@ class CARClient:
     ):
         self.resolver = pds_resolver or PDSResolver()
         self.timeout = timeout
-        self.session = requests.Session()
+        self.session = create_retrying_session(
+            max_retries=Config.MAX_RETRIES,
+            backoff_factor=Config.RETRY_BACKOFF_FACTOR,
+        )
 
     def download_repo(self, did: str) -> bytes:
         """
