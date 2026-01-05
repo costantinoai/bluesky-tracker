@@ -362,6 +362,29 @@ class Database:
             """
             )
 
+            # Interactions (who interacts with you)
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS interactions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    collection_date DATE NOT NULL,
+                    user_did TEXT NOT NULL,
+                    user_handle TEXT NOT NULL,
+                    user_display_name TEXT,
+                    user_avatar TEXT,
+                    user_bio TEXT,
+                    likes_received INTEGER DEFAULT 0,
+                    replies_received INTEGER DEFAULT 0,
+                    reposts_received INTEGER DEFAULT 0,
+                    quotes_received INTEGER DEFAULT 0,
+                    follows_received INTEGER DEFAULT 0,
+                    interaction_score INTEGER DEFAULT 0,
+                    last_interaction_date TEXT,
+                    UNIQUE(collection_date, user_did)
+                )
+            """
+            )
+
             # Indexes for new tables
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_likes_given_author ON likes_given(liked_author_did)"
@@ -380,6 +403,12 @@ class Database:
             )
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_backfill_log_did ON backfill_log(did)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_interactions_date ON interactions(collection_date)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_interactions_user ON interactions(user_did)"
             )
 
             # Add new columns to existing tables (SQLite ADD COLUMN is safe if column exists)
@@ -1179,29 +1208,6 @@ class Database:
         collection_date = format_sqlite_date(collection_date)
         with self.get_connection() as conn:
             cursor = conn.cursor()
-
-            # Create interactions table
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS interactions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    collection_date DATE NOT NULL,
-                    user_did TEXT NOT NULL,
-                    user_handle TEXT NOT NULL,
-                    user_display_name TEXT,
-                    user_avatar TEXT,
-                    user_bio TEXT,
-                    likes_received INTEGER DEFAULT 0,
-                    replies_received INTEGER DEFAULT 0,
-                    reposts_received INTEGER DEFAULT 0,
-                    quotes_received INTEGER DEFAULT 0,
-                    follows_received INTEGER DEFAULT 0,
-                    interaction_score INTEGER DEFAULT 0,
-                    last_interaction_date TEXT,
-                    UNIQUE(collection_date, user_did)
-                )
-            """
-            )
 
             for interaction in interactions_data:
                 last_interaction = maybe_format_sqlite_datetime(

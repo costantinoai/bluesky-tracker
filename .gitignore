@@ -54,4 +54,7 @@ venv/
 
 # Local (untracked) scripts
 scripts/local/
+
+# Markdown files (except README)
 *.md
+!README.md
