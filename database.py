@@ -1,7 +1,8 @@
 import sqlite3
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from contextlib import contextmanager
 from config import Config
+from time_utils import format_sqlite_date, maybe_format_sqlite_datetime
 import logging
 
 logger = logging.getLogger(__name__)
@@ -415,6 +416,7 @@ class Database:
         blocked=None,
     ):
         """Save daily snapshot of followers, following, and counts"""
+        collection_date = format_sqlite_date(collection_date)
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
@@ -540,6 +542,7 @@ class Database:
 
     def detect_changes(self, collection_date):
         """Compare with previous day to detect changes"""
+        collection_date = format_sqlite_date(collection_date)
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
@@ -845,7 +848,7 @@ class Database:
                 VALUES (?, ?, ?, ?, ?, ?)
             """,
                 (
-                    datetime.now(),
+                    maybe_format_sqlite_datetime(datetime.now(timezone.utc)),
                     status,
                     followers_collected,
                     following_collected,
@@ -856,29 +859,12 @@ class Database:
 
     def save_engagement_data(self, collection_date, engagement_data):
         """Save post engagement metrics"""
+        collection_date = format_sqlite_date(collection_date)
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            # Create engagement table if not exists
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS post_engagement (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    collection_date DATE NOT NULL,
-                    post_uri TEXT NOT NULL,
-                    post_text TEXT,
-                    created_at TEXT,
-                    like_count INTEGER DEFAULT 0,
-                    repost_count INTEGER DEFAULT 0,
-                    reply_count INTEGER DEFAULT 0,
-                    quote_count INTEGER DEFAULT 0,
-                    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(collection_date, post_uri)
-                )
-            """
-            )
-
             for post in engagement_data:
+                created_at = maybe_format_sqlite_datetime(post.get("created_at"))
                 cursor.execute(
                     """
                     INSERT OR REPLACE INTO post_engagement
@@ -890,7 +876,7 @@ class Database:
                         collection_date,
                         post.get("uri"),
                         post.get("text"),
-                        post.get("created_at"),
+                        created_at,
                         post.get("like_count", 0),
                         post.get("repost_count", 0),
                         post.get("reply_count", 0),
@@ -1190,6 +1176,7 @@ class Database:
 
     def save_interactions(self, collection_date, interactions_data):
         """Save interaction data from notifications"""
+        collection_date = format_sqlite_date(collection_date)
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
@@ -1217,6 +1204,9 @@ class Database:
             )
 
             for interaction in interactions_data:
+                last_interaction = maybe_format_sqlite_datetime(
+                    interaction.get("last_interaction")
+                )
                 cursor.execute(
                     """
                     INSERT OR REPLACE INTO interactions 
@@ -1238,7 +1228,7 @@ class Database:
                         interaction.get("quotes", 0),
                         interaction.get("follows", 0),
                         interaction.get("score", 0),
-                        interaction.get("last_interaction", ""),
+                        last_interaction,
                     ),
                 )
 
@@ -1398,6 +1388,7 @@ class Database:
             inserted = 0
             for like in likes_data:
                 try:
+                    liked_at = maybe_format_sqlite_datetime(like.get("liked_at"))
                     cursor.execute(
                         """
                         INSERT OR IGNORE INTO likes_given
@@ -1407,7 +1398,7 @@ class Database:
                         (
                             like.get("liked_post_uri"),
                             like.get("liked_author_did"),
-                            like.get("liked_at"),
+                            liked_at,
                             like.get("rkey"),
                         ),
                     )
@@ -1435,6 +1426,7 @@ class Database:
             inserted = 0
             for repost in reposts_data:
                 try:
+                    reposted_at = maybe_format_sqlite_datetime(repost.get("reposted_at"))
                     cursor.execute(
                         """
                         INSERT OR IGNORE INTO reposts_given
@@ -1444,7 +1436,7 @@ class Database:
                         (
                             repost.get("reposted_uri"),
                             repost.get("reposted_author_did"),
-                            repost.get("reposted_at"),
+                            reposted_at,
                             repost.get("rkey"),
                         ),
                     )
@@ -1475,6 +1467,7 @@ class Database:
             inserted = 0
             for post in posts_data:
                 try:
+                    post_created_at = maybe_format_sqlite_datetime(post.get("post_created_at"))
                     cursor.execute(
                         """
                         INSERT OR IGNORE INTO posts_full
@@ -1484,7 +1477,7 @@ class Database:
                         (
                             post.get("post_uri"),
                             post.get("text"),
-                            post.get("post_created_at"),
+                            post_created_at,
                             1 if post.get("is_reply") else 0,
                             post.get("reply_to_uri"),
                             1 if post.get("has_embed") else 0,
@@ -1510,10 +1503,12 @@ class Database:
                 - followed_at: Timestamp when follow was created (from CAR)
                 - display_name, avatar_url, bio: Profile info (optional)
         """
+        collection_date = format_sqlite_date(collection_date)
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
             for follow in following_data:
+                followed_at = maybe_format_sqlite_datetime(follow.get("followed_at"))
                 cursor.execute(
                     """
                     INSERT OR REPLACE INTO following_snapshot
@@ -1527,7 +1522,7 @@ class Database:
                         follow.get("display_name", ""),
                         follow.get("avatar_url", ""),
                         follow.get("bio", ""),
-                        follow.get("followed_at"),
+                        followed_at,
                     ),
                 )
 
@@ -1543,10 +1538,12 @@ class Database:
                 - handle: Blocked user handle
                 - blocked_at: Timestamp when block was created (from CAR)
         """
+        collection_date = format_sqlite_date(collection_date)
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
             for block in blocks_data:
+                blocked_at = maybe_format_sqlite_datetime(block.get("blocked_at"))
                 cursor.execute(
                     """
                     INSERT OR REPLACE INTO blocked_snapshot
@@ -1560,7 +1557,7 @@ class Database:
                         block.get("display_name", ""),
                         block.get("avatar_url", ""),
                         block.get("bio", ""),
-                        block.get("blocked_at"),
+                        blocked_at,
                     ),
                 )
 

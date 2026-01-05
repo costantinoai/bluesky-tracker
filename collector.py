@@ -14,6 +14,7 @@ from database import Database
 from car_utils import CARClient
 from public_api import PublicAPIClient
 from http_client import create_retrying_session
+from time_utils import maybe_format_sqlite_datetime
 import logging
 
 logger = logging.getLogger(__name__)
@@ -183,7 +184,9 @@ class BlueskyCollector:
             for follow in car_follows:
                 follow_did = follow.get("did") or follow.get("subject_did")
                 if follow_did:
-                    timestamp_map[follow_did] = follow.get("created_at")
+                    timestamp_map[follow_did] = maybe_format_sqlite_datetime(
+                        follow.get("created_at") or follow.get("created_at_str")
+                    )
 
             # Merge: API profiles + CAR timestamps
             following = []
@@ -251,7 +254,9 @@ class BlueskyCollector:
                     "display_name": display_name,
                     "avatar_url": avatar_url,
                     "bio": bio,
-                    "blocked_at": block.get("created_at"),
+                    "blocked_at": maybe_format_sqlite_datetime(
+                        block.get("created_at") or block.get("created_at_str")
+                    ),
                 })
 
             logger.info(f"Fetched {len(blocked)} blocks from CAR file")
@@ -294,7 +299,9 @@ class BlueskyCollector:
                 likes_data.append({
                     "liked_post_uri": subject_uri,
                     "liked_author_did": author_did,
-                    "liked_at": like.get("created_at"),
+                    "liked_at": maybe_format_sqlite_datetime(
+                        like.get("created_at") or like.get("created_at_str")
+                    ),
                     "rkey": like.get("rkey"),
                 })
 
@@ -339,7 +346,9 @@ class BlueskyCollector:
                 reposts_data.append({
                     "reposted_uri": subject_uri,
                     "reposted_author_did": author_did,
-                    "reposted_at": repost.get("created_at"),
+                    "reposted_at": maybe_format_sqlite_datetime(
+                        repost.get("created_at") or repost.get("created_at_str")
+                    ),
                     "rkey": repost.get("rkey"),
                 })
 
@@ -384,7 +393,9 @@ class BlueskyCollector:
                 posts_data.append({
                     "post_uri": post.get("cid"),  # Use CID as unique identifier
                     "text": post.get("text", ""),
-                    "post_created_at": post.get("created_at_str"),  # Use string timestamp
+                    "post_created_at": maybe_format_sqlite_datetime(
+                        post.get("created_at") or post.get("created_at_str")
+                    ),
                     "is_reply": post.get("is_reply", False),
                     "reply_to_uri": reply_uri,
                     "has_embed": post.get("has_embed", False),
@@ -573,7 +584,9 @@ class BlueskyCollector:
                 following_data.append({
                     "did": follow.get("did"),
                     "handle": "",
-                    "followed_at": follow.get("created_at"),
+                    "followed_at": maybe_format_sqlite_datetime(
+                        follow.get("created_at") or follow.get("created_at_str")
+                    ),
                 })
             self.db.save_following_with_timestamps(date.today(), following_data)
 
@@ -591,7 +604,9 @@ class BlueskyCollector:
                 likes_data.append({
                     "liked_post_uri": subject_uri,
                     "liked_author_did": author_did,
-                    "liked_at": like.get("created_at"),
+                    "liked_at": maybe_format_sqlite_datetime(
+                        like.get("created_at") or like.get("created_at_str")
+                    ),
                     "rkey": like.get("rkey"),
                 })
             self.db.save_likes_given(likes_data)
@@ -610,7 +625,9 @@ class BlueskyCollector:
                 reposts_data.append({
                     "reposted_uri": subject_uri,
                     "reposted_author_did": author_did,
-                    "reposted_at": repost.get("created_at"),
+                    "reposted_at": maybe_format_sqlite_datetime(
+                        repost.get("created_at") or repost.get("created_at_str")
+                    ),
                     "rkey": repost.get("rkey"),
                 })
             self.db.save_reposts_given(reposts_data)
@@ -629,7 +646,9 @@ class BlueskyCollector:
                 posts_data.append({
                     "post_uri": post.get("cid"),  # Use CID as unique identifier
                     "text": post.get("text", ""),
-                    "post_created_at": post.get("created_at_str"),
+                    "post_created_at": maybe_format_sqlite_datetime(
+                        post.get("created_at") or post.get("created_at_str")
+                    ),
                     "is_reply": post.get("is_reply", False),
                     "reply_to_uri": reply_uri,
                     "has_embed": post.get("has_embed", False),
@@ -644,7 +663,9 @@ class BlueskyCollector:
                 blocks_data.append({
                     "did": block.get("did"),
                     "handle": "",
-                    "blocked_at": block.get("created_at"),
+                    "blocked_at": maybe_format_sqlite_datetime(
+                        block.get("created_at") or block.get("created_at_str")
+                    ),
                 })
             self.db.save_blocks_with_timestamps(date.today(), blocks_data)
 

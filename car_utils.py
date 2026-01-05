@@ -14,7 +14,7 @@ This enables:
 
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from functools import lru_cache
 
@@ -603,10 +603,14 @@ class CARClient:
         # Handle various ISO formats
         ts_str = ts_str.replace("Z", "+00:00")
         try:
-            return datetime.fromisoformat(ts_str)
+            parsed = datetime.fromisoformat(ts_str)
         except ValueError:
             # Fallback for edge cases
-            return datetime.strptime(ts_str[:19], "%Y-%m-%dT%H:%M:%S")
+            parsed = datetime.strptime(ts_str[:19], "%Y-%m-%dT%H:%M:%S")
+
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed
 
 
 # Convenience functions for simple usage
