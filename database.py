@@ -1850,8 +1850,12 @@ class Database:
                 for row in cursor.fetchall()
             ]
 
-    def get_engagement_balance(self, days=None):
+    def get_engagement_balance(self, days=None, user_did=None):
         """Get comparison of engagement given vs received.
+
+        Args:
+            days: Optional number of days to filter by
+            user_did: Optional user DID to exclude self-replies from count
 
         Returns dict with:
             - given: {likes, reposts, replies}
@@ -1860,6 +1864,17 @@ class Database:
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
+
+            # Get user's DID from post_engagement if not provided
+            if not user_did:
+                cursor.execute("""
+                    SELECT SUBSTR(post_uri, 6, INSTR(SUBSTR(post_uri, 6), '/') - 1)
+                    FROM post_engagement
+                    WHERE post_uri LIKE 'at://%'
+                    LIMIT 1
+                """)
+                row = cursor.fetchone()
+                user_did = row[0] if row else None
 
             # Likes given
             if days:
@@ -1887,18 +1902,51 @@ class Database:
                 cursor.execute("SELECT COUNT(*) FROM reposts_given")
             reposts_given = cursor.fetchone()[0] or 0
 
-            # Replies given (posts that are replies)
+            # Replies given (only replies to OTHER users, excluding self-replies/threads)
+            # Use DISTINCT to handle any duplicate rows (deduplication)
             if days:
-                cursor.execute(
-                    """
-                    SELECT COUNT(*) FROM posts_full
-                    WHERE is_reply = 1
-                    AND post_created_at >= datetime('now', '-' || ? || ' days')
-                    """,
-                    (days,),
-                )
+                if user_did:
+                    cursor.execute(
+                        """
+                        SELECT COUNT(*) FROM (
+                            SELECT DISTINCT text, post_created_at FROM posts_full
+                            WHERE is_reply = 1
+                            AND post_created_at >= datetime('now', '-' || ? || ' days')
+                            AND (reply_to_uri IS NULL OR reply_to_uri NOT LIKE ?)
+                        )
+                        """,
+                        (days, f"%{user_did}%"),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        SELECT COUNT(*) FROM (
+                            SELECT DISTINCT text, post_created_at FROM posts_full
+                            WHERE is_reply = 1
+                            AND post_created_at >= datetime('now', '-' || ? || ' days')
+                        )
+                        """,
+                        (days,),
+                    )
             else:
-                cursor.execute("SELECT COUNT(*) FROM posts_full WHERE is_reply = 1")
+                if user_did:
+                    cursor.execute(
+                        """
+                        SELECT COUNT(*) FROM (
+                            SELECT DISTINCT text, post_created_at FROM posts_full
+                            WHERE is_reply = 1
+                            AND (reply_to_uri IS NULL OR reply_to_uri NOT LIKE ?)
+                        )
+                        """,
+                        (f"%{user_did}%",),
+                    )
+                else:
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM (
+                            SELECT DISTINCT text, post_created_at FROM posts_full
+                            WHERE is_reply = 1
+                        )
+                    """)
             replies_given = cursor.fetchone()[0] or 0
 
             # Received engagement - use same logic as engagement timeline
@@ -2035,3 +2083,53 @@ class Database:
                 }
                 for row in cursor.fetchall()
             ]
+
+    def cleanup_duplicate_posts(self):
+        """Remove duplicate posts from posts_full table.
+
+        Duplicates are identified by matching text + post_created_at.
+        Keeps only the first occurrence (lowest id) of each unique post.
+
+        Returns:
+            dict with cleanup statistics
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Count before cleanup
+            cursor.execute("SELECT COUNT(*) FROM posts_full")
+            total_before = cursor.fetchone()[0]
+
+            cursor.execute("""
+                SELECT COUNT(*) FROM (
+                    SELECT DISTINCT text, post_created_at FROM posts_full
+                )
+            """)
+            unique_count = cursor.fetchone()[0]
+
+            duplicates_to_remove = total_before - unique_count
+
+            if duplicates_to_remove > 0:
+                # Delete duplicates, keeping the row with the lowest id for each unique combination
+                cursor.execute("""
+                    DELETE FROM posts_full
+                    WHERE id NOT IN (
+                        SELECT MIN(id)
+                        FROM posts_full
+                        GROUP BY text, post_created_at
+                    )
+                """)
+                conn.commit()
+
+            # Count after cleanup
+            cursor.execute("SELECT COUNT(*) FROM posts_full")
+            total_after = cursor.fetchone()[0]
+
+            logger.info(f"Cleanup: removed {duplicates_to_remove} duplicate posts ({total_before} -> {total_after})")
+
+            return {
+                "total_before": total_before,
+                "total_after": total_after,
+                "duplicates_removed": duplicates_to_remove,
+                "unique_posts": unique_count,
+            }

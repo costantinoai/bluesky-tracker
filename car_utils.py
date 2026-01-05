@@ -510,6 +510,7 @@ class CARClient:
                 reply_info = value.get("reply")
                 posts.append(
                     {
+                        "cid": record.get("cid"),  # Unique content identifier
                         "text": value.get("text", ""),
                         "created_at": self._parse_timestamp(created_at_str),
                         "created_at_str": created_at_str,

@@ -611,21 +611,25 @@ class BlueskyCollector:
                 })
             self.db.save_reposts_given(reposts_data)
 
-            # Save posts
+            # Save posts (using keys from _process_posts() output)
             posts = all_data.get("posts", [])
             posts_data = []
             for post in posts:
-                record = post.get("record", {})
-                reply = record.get("reply", {})
+                reply_to = post.get("reply_to")
+                reply_uri = None
+                if reply_to and isinstance(reply_to, dict):
+                    parent = reply_to.get("parent", {})
+                    if isinstance(parent, dict):
+                        reply_uri = parent.get("uri")
 
                 posts_data.append({
-                    "post_uri": post.get("uri"),
-                    "text": record.get("text", ""),
-                    "post_created_at": record.get("createdAt"),
-                    "is_reply": bool(reply),
-                    "reply_to_uri": reply.get("parent", {}).get("uri") if reply else None,
-                    "has_embed": bool(record.get("embed")),
-                    "langs": ",".join(record.get("langs", [])) if record.get("langs") else None,
+                    "post_uri": post.get("cid"),  # Use CID as unique identifier
+                    "text": post.get("text", ""),
+                    "post_created_at": post.get("created_at_str"),
+                    "is_reply": post.get("is_reply", False),
+                    "reply_to_uri": reply_uri,
+                    "has_embed": post.get("has_embed", False),
+                    "langs": ",".join(post.get("langs", [])) if post.get("langs") else None,
                 })
             self.db.save_posts_from_car(posts_data)
 

@@ -561,6 +561,19 @@ def api_backfill_history():
         return jsonify({"error": "Internal error"}), 500
 
 
+@app.route("/api/cleanup/duplicates", methods=["POST"])
+def api_cleanup_duplicates():
+    """Remove duplicate posts from database"""
+    try:
+        result = db.cleanup_duplicate_posts()
+        api_requests.labels(endpoint="/api/cleanup/duplicates", status="success").inc()
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"/api/cleanup/duplicates error: {e}")
+        api_requests.labels(endpoint="/api/cleanup/duplicates", status="error").inc()
+        return jsonify({"error": "Internal error"}), 500
+
+
 @app.route("/api/auth/status")
 def api_auth_status():
     """Get authentication status and available features"""
