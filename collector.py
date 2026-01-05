@@ -385,10 +385,17 @@ class BlueskyCollector:
                 # get_all_data returns processed posts with direct keys
                 reply = post.get("reply_to")
                 reply_uri = None
+                is_self_reply = False
                 if reply and isinstance(reply, dict):
                     parent = reply.get("parent", {})
                     if isinstance(parent, dict):
                         reply_uri = parent.get("uri")
+                        # Check if this is a reply to own post (thread continuation)
+                        if reply_uri and reply_uri.startswith("at://"):
+                            parts = reply_uri.split("/")
+                            if len(parts) >= 3:
+                                parent_did = parts[2]
+                                is_self_reply = (parent_did == did)
 
                 posts_data.append({
                     "post_uri": post.get("cid"),  # Use CID as unique identifier
@@ -397,6 +404,7 @@ class BlueskyCollector:
                         post.get("created_at") or post.get("created_at_str")
                     ),
                     "is_reply": post.get("is_reply", False),
+                    "is_self_reply": is_self_reply,
                     "reply_to_uri": reply_uri,
                     "has_embed": post.get("has_embed", False),
                     "langs": ",".join(post.get("langs", [])) if post.get("langs") else None,

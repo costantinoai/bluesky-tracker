@@ -80,33 +80,6 @@ class Database:
             """
             )
 
-            # Migration: deduplicate and add unique constraint to existing follower_changes
-            try:
-                # First, remove duplicate entries keeping only the earliest one
-                cursor.execute(
-                    """
-                    DELETE FROM follower_changes
-                    WHERE id NOT IN (
-                        SELECT MIN(id)
-                        FROM follower_changes
-                        GROUP BY change_date, change_type, did
-                    )
-                """
-                )
-                deleted_count = cursor.rowcount
-                if deleted_count > 0:
-                    logger.info(f"Migration: removed {deleted_count} duplicate follower_changes entries")
-
-                # Then create the unique index
-                cursor.execute(
-                    """
-                    CREATE UNIQUE INDEX IF NOT EXISTS idx_follower_changes_unique
-                    ON follower_changes(change_date, change_type, did)
-                """
-                )
-            except sqlite3.OperationalError:
-                pass  # Index already exists or table has constraint
-
             # Daily metrics
             cursor.execute(
                 """
@@ -300,12 +273,11 @@ class Database:
                 """
                 CREATE TABLE IF NOT EXISTS likes_given (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    liked_post_uri TEXT NOT NULL,
+                    liked_post_uri TEXT NOT NULL UNIQUE,
                     liked_author_did TEXT,
                     liked_at TIMESTAMP NOT NULL,
                     rkey TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(liked_post_uri, liked_at)
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """
             )
@@ -315,12 +287,11 @@ class Database:
                 """
                 CREATE TABLE IF NOT EXISTS reposts_given (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    reposted_uri TEXT NOT NULL,
+                    reposted_uri TEXT NOT NULL UNIQUE,
                     reposted_author_did TEXT,
                     reposted_at TIMESTAMP NOT NULL,
                     rkey TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(reposted_uri, reposted_at)
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """
             )
@@ -330,10 +301,11 @@ class Database:
                 """
                 CREATE TABLE IF NOT EXISTS posts_full (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    post_uri TEXT UNIQUE,
+                    post_uri TEXT NOT NULL UNIQUE,
                     text TEXT,
                     post_created_at TIMESTAMP NOT NULL,
                     is_reply BOOLEAN DEFAULT 0,
+                    is_self_reply BOOLEAN DEFAULT 0,
                     reply_to_uri TEXT,
                     has_embed BOOLEAN DEFAULT 0,
                     langs TEXT,
@@ -384,34 +356,6 @@ class Database:
                 )
             """
             )
-
-            # Migration: deduplicate and add unique constraint to existing interactions table
-            # (Older DBs may be missing the UNIQUE constraint, which makes INSERT OR REPLACE insert duplicates.)
-            try:
-                cursor.execute(
-                    """
-                    DELETE FROM interactions
-                    WHERE id NOT IN (
-                        SELECT MIN(id)
-                        FROM interactions
-                        GROUP BY collection_date, user_did
-                    )
-                """
-                )
-                deleted_count = cursor.rowcount
-                if deleted_count > 0:
-                    logger.info(
-                        f"Migration: removed {deleted_count} duplicate interactions entries"
-                    )
-
-                cursor.execute(
-                    """
-                    CREATE UNIQUE INDEX IF NOT EXISTS idx_interactions_unique
-                    ON interactions(collection_date, user_did)
-                """
-                )
-            except sqlite3.OperationalError:
-                pass  # Index already exists or table has constraint
 
             # Indexes for new tables
             cursor.execute(
@@ -1491,6 +1435,7 @@ class Database:
                 - text: Post text content
                 - post_created_at: Timestamp when post was created
                 - is_reply: Boolean whether post is a reply
+                - is_self_reply: Boolean whether post is a reply to own post (thread)
                 - reply_to_uri: URI of parent post if reply
                 - has_embed: Boolean whether post has embeds
                 - langs: Language tags (comma-separated)
@@ -1505,14 +1450,15 @@ class Database:
                     cursor.execute(
                         """
                         INSERT OR IGNORE INTO posts_full
-                        (post_uri, text, post_created_at, is_reply, reply_to_uri, has_embed, langs, source)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, 'car')
+                        (post_uri, text, post_created_at, is_reply, is_self_reply, reply_to_uri, has_embed, langs, source)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'car')
                         """,
                         (
                             post.get("post_uri"),
                             post.get("text"),
                             post_created_at,
                             1 if post.get("is_reply") else 0,
+                            1 if post.get("is_self_reply") else 0,
                             post.get("reply_to_uri"),
                             1 if post.get("has_embed") else 0,
                             post.get("langs"),
@@ -1787,7 +1733,8 @@ class Database:
             days: Optional - only count posts within last N days
 
         Returns:
-            Dict with total_posts, reply_count, original_count, etc.
+            Dict with total_posts, original_count, thread_count,
+            replies_to_others_count, etc.
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -1798,13 +1745,14 @@ class Database:
                 where_clause = "WHERE post_created_at >= datetime('now', '-' || ? || ' days')"
                 params = (days,)
 
-            # Total posts and reply breakdown
+            # Total posts and detailed breakdown
             cursor.execute(
                 f"""
                 SELECT
                     COUNT(*) as total_posts,
-                    SUM(CASE WHEN is_reply = 1 THEN 1 ELSE 0 END) as reply_count,
                     SUM(CASE WHEN is_reply = 0 THEN 1 ELSE 0 END) as original_count,
+                    SUM(CASE WHEN is_reply = 1 AND is_self_reply = 1 THEN 1 ELSE 0 END) as thread_count,
+                    SUM(CASE WHEN is_reply = 1 AND is_self_reply = 0 THEN 1 ELSE 0 END) as replies_to_others_count,
                     SUM(CASE WHEN has_embed = 1 THEN 1 ELSE 0 END) as with_embed_count
                 FROM posts_full
                 {where_clause}
@@ -1814,14 +1762,15 @@ class Database:
             row = cursor.fetchone()
 
             total_posts = row[0] or 0
-            reply_count = row[1] or 0
-            original_count = row[2] or 0
-            with_embed_count = row[3] or 0
+            original_count = row[1] or 0
+            thread_count = row[2] or 0
+            replies_to_others_count = row[3] or 0
+            with_embed_count = row[4] or 0
 
             # Recent posts
             cursor.execute(
                 """
-                SELECT post_uri, text, post_created_at, is_reply
+                SELECT post_uri, text, post_created_at, is_reply, is_self_reply
                 FROM posts_full
                 ORDER BY post_created_at DESC
                 LIMIT 10
@@ -1833,16 +1782,18 @@ class Database:
                     "text": row[1][:100] if row[1] else "",
                     "created_at": row[2],
                     "is_reply": bool(row[3]),
+                    "is_self_reply": bool(row[4]),
                 }
                 for row in cursor.fetchall()
             ]
 
             return {
                 "total_posts": total_posts,
-                "reply_count": reply_count,
                 "original_count": original_count,
+                "thread_count": thread_count,
+                "replies_to_others_count": replies_to_others_count,
                 "with_embed_count": with_embed_count,
-                "reply_ratio": round(reply_count / total_posts, 2) if total_posts > 0 else 0,
+                "engagement_ratio": round(replies_to_others_count / total_posts, 2) if total_posts > 0 else 0,
                 "recent_posts": recent_posts,
             }
 
@@ -1886,7 +1837,7 @@ class Database:
 
         Args:
             days: Optional number of days to filter by
-            user_did: Optional user DID to exclude self-replies from count
+            user_did: Deprecated - no longer needed (is_self_reply column used instead)
 
         Returns dict with:
             - given: {likes, reposts, replies}
@@ -1895,17 +1846,6 @@ class Database:
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-
-            # Get user's DID from post_engagement if not provided
-            if not user_did:
-                cursor.execute("""
-                    SELECT SUBSTR(post_uri, 6, INSTR(SUBSTR(post_uri, 6), '/') - 1)
-                    FROM post_engagement
-                    WHERE post_uri LIKE 'at://%'
-                    LIMIT 1
-                """)
-                row = cursor.fetchone()
-                user_did = row[0] if row else None
 
             # Likes given
             if days:
@@ -1934,50 +1874,21 @@ class Database:
             reposts_given = cursor.fetchone()[0] or 0
 
             # Replies given (only replies to OTHER users, excluding self-replies/threads)
-            # Use DISTINCT to handle any duplicate rows (deduplication)
+            # Uses is_self_reply column for clean filtering
             if days:
-                if user_did:
-                    cursor.execute(
-                        """
-                        SELECT COUNT(*) FROM (
-                            SELECT DISTINCT text, post_created_at FROM posts_full
-                            WHERE is_reply = 1
-                            AND post_created_at >= datetime('now', '-' || ? || ' days')
-                            AND (reply_to_uri IS NULL OR reply_to_uri NOT LIKE ?)
-                        )
-                        """,
-                        (days, f"%{user_did}%"),
-                    )
-                else:
-                    cursor.execute(
-                        """
-                        SELECT COUNT(*) FROM (
-                            SELECT DISTINCT text, post_created_at FROM posts_full
-                            WHERE is_reply = 1
-                            AND post_created_at >= datetime('now', '-' || ? || ' days')
-                        )
-                        """,
-                        (days,),
-                    )
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) FROM posts_full
+                    WHERE is_reply = 1 AND is_self_reply = 0
+                    AND post_created_at >= datetime('now', '-' || ? || ' days')
+                    """,
+                    (days,),
+                )
             else:
-                if user_did:
-                    cursor.execute(
-                        """
-                        SELECT COUNT(*) FROM (
-                            SELECT DISTINCT text, post_created_at FROM posts_full
-                            WHERE is_reply = 1
-                            AND (reply_to_uri IS NULL OR reply_to_uri NOT LIKE ?)
-                        )
-                        """,
-                        (f"%{user_did}%",),
-                    )
-                else:
-                    cursor.execute("""
-                        SELECT COUNT(*) FROM (
-                            SELECT DISTINCT text, post_created_at FROM posts_full
-                            WHERE is_reply = 1
-                        )
-                    """)
+                cursor.execute("""
+                    SELECT COUNT(*) FROM posts_full
+                    WHERE is_reply = 1 AND is_self_reply = 0
+                """)
             replies_given = cursor.fetchone()[0] or 0
 
             # Received engagement - use same logic as engagement timeline
