@@ -95,7 +95,7 @@ def get_report_html(data):
         </div>"""
 
     # HTML with embedded CSS
-    html = f"""<!DOCTYPE html>
+    page_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -380,7 +380,7 @@ def get_report_html(data):
         </div>
 """
 
-    html += """
+    page_html += """
 <!-- HISTORICAL ANALYTICS SECTION -->
 <!-- ================================================================ -->
 
@@ -522,7 +522,7 @@ def get_report_html(data):
     """
 
     # Top Posts Section (AJAX-loaded)
-    html += f"""
+    page_html += f"""
         <div class="section-card" id="top-posts-section">
             <div class="section-header" onclick="toggleSection(this)">
                 <div class="section-title">
@@ -549,7 +549,7 @@ def get_report_html(data):
 """
 
     # Unfollowers Section (AJAX-loaded)
-    html += f"""
+    page_html += f"""
         <div class="section-card" id="unfollowers-section">
             <div class="section-header" onclick="toggleSection(this)">
                 <div class="section-title">
@@ -582,7 +582,7 @@ def get_report_html(data):
         or hidden_current.get("blocked_count", 0) > 0
         or hidden_current.get("muted_count", 0) > 0
     ):
-        html += f"""
+        page_html += f"""
         <div class="section-card">
             <div class="section-header" onclick="toggleSection(this)">
                 <div class="section-title">
@@ -620,7 +620,7 @@ def get_report_html(data):
         # Show accounts you blocked
         blocked_accounts = hidden_categories.get("blocked", {}).get("accounts", [])
         if blocked_accounts:
-            html += f"""
+            page_html += f"""
                     <div style="background: var(--md-error-container); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
                         <h4 style="font-size: 16px; font-weight: 600; margin-bottom: 12px; color: var(--md-error);">🚫 You Blocked ({len(blocked_accounts)})</h4>
 """
@@ -629,19 +629,19 @@ def get_report_html(data):
                 handle = user.get("handle", "")
                 bio = user.get("bio", "")[:100]
                 safe_profile_url = f"https://bsky.app/profile/{quote(str(handle or ''), safe='')}"
-                html += f"""
+                page_html += f"""
                         <div class="card" style="margin-bottom: 8px; cursor: pointer;" onclick="window.open('{esc_attr(safe_profile_url)}', '_blank')">
                             <strong>{esc_text(display_name)}</strong> <span style="color: var(--md-on-surface-variant);">@{esc_text(handle)}</span>
                             {f'<p style="font-size: 13px; color: var(--md-on-surface-variant); margin-top: 4px;">{esc_text(bio)}</p>' if bio else ''}
                         </div>
 """
-            html += """
+            page_html += """
                     </div>
 """
 
         # Show suspected blocks/deactivations
         suspected = hidden_current.get("suspected_blocks_or_suspensions", 0)
-        html += f"""
+        page_html += f"""
                     <div style="background: var(--md-secondary-container); padding: 20px; border-radius: 12px;">
                         <h4 style="font-size: 18px; font-weight: 700; margin-bottom: 12px;">❓ Blocked You or Deactivated: {suspected} accounts</h4>
                         <p style="margin-bottom: 12px; line-height: 1.6;">
@@ -665,7 +665,7 @@ def get_report_html(data):
 """
 
     # Top Interactors Section (AJAX-loaded)
-    html += f"""
+    page_html += f"""
         <div class="section-card" id="top-interactors-section">
             <div class="section-header" onclick="toggleSection(this)">
                 <div class="section-title">
@@ -703,7 +703,7 @@ def get_report_html(data):
     else:
         mutual_body = '<div class="empty-state"><div class="empty-state-icon">🤝</div><h4>No mutual follows yet</h4></div>'
 
-    html += f"""
+    page_html += f"""
         <div class="section-card">
             <div class="section-header" onclick="toggleSection(this)">
                 <div class="section-title">
@@ -734,7 +734,7 @@ def get_report_html(data):
     else:
         non_mutual_body = '<div class="empty-state"><div class="empty-state-icon">✨</div><h4>Everyone follows back</h4></div>'
 
-    html += f"""
+    page_html += f"""
         <div class="section-card">
             <div class="section-header" onclick="toggleSection(this)">
                 <div class="section-title">
@@ -769,7 +769,7 @@ def get_report_html(data):
     else:
         followers_only_body = '<div class="empty-state"><div class="empty-state-icon">🤷</div><h4>No followers only</h4></div>'
 
-    html += f"""
+    page_html += f"""
         <div class="section-card">
             <div class="section-header" onclick="toggleSection(this)">
                 <div class="section-title">
@@ -791,7 +791,7 @@ def get_report_html(data):
 """
 
     # Footer with JavaScript
-    html += """
+    page_html += """
     </div>
     <script>
         function showMoreCards(gridId) {
@@ -861,7 +861,7 @@ def get_report_html(data):
 </body>
 </html>"""
 
-    html += """
+    page_html += """
     <script>
     // ========================================================================
 // CHART.JS HISTORICAL ANALYTICS
@@ -1530,7 +1530,7 @@ async function loadTopPosts(days) {
             const indirectBadge = totalIndirect > 0 ?
                 `<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #E1F5FE; border-radius: 12px; font-size: 13px;" title="Indirect Engagement from quote posts"><span class="material-icons" style="font-size: 16px; color: #0277BD;">add_circle</span><span style="font-weight: 500; color: #0277BD;">+${totalIndirect} indirect</span></div>` : '';
 
-            html += `
+            page_html += `
                 <div class="post-card" onclick="window.open('${postUrl}', '_blank')" style="background: white; border: 1px solid #E0E0E0; border-radius: 12px; padding: 0; margin-bottom: 16px; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden;">
                     <div style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px 16px;">
                         ${userAvatarUrl
@@ -1602,7 +1602,7 @@ async function loadUnfollowers(days) {
                     <div style="width:56px;height:56px;border-radius:50%;background:#CAC4D0;display:${safeAvatarUrl ? 'none' : 'flex'};align-items:center;justify-content:center;font-size:24px;color:#666;">${initial}</div>
                 </div>`;
 
-            html += `
+            page_html += `
                 <div class="user-card" onclick="window.open('${profileUrl}', '_blank')">
                     ${avatarHtml}
                     <div class="user-content">
@@ -1615,7 +1615,7 @@ async function loadUnfollowers(days) {
                     <div class="user-action"><span class="material-icons">open_in_new</span></div>
                 </div>`;
         }
-        html += '</div>';
+        page_html += '</div>';
         container.innerHTML = html;
     } catch (error) {
         console.error('Error loading unfollowers:', error);
@@ -1668,7 +1668,7 @@ async function loadTopInteractors(days) {
             if (quotes > 0) badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #B3E5FC; color: #01579B; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">format_quote</span>${quotes}</span>`;
             if (follows > 0) badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #BBDEFB; color: #1976D2; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">person_add</span>${follows}</span>`;
 
-            html += `
+            page_html += `
                 <div class="interactor-card" onclick="window.open('${profileUrl}', '_blank')">
                     ${avatarHtml}
                     <div style="flex: 1;">
@@ -1681,7 +1681,7 @@ async function loadTopInteractors(days) {
                     </div>
                 </div>`;
         }
-        html += '</div>';
+        page_html += '</div>';
         container.innerHTML = html;
     } catch (error) {
         console.error('Error loading top interactors:', error);
@@ -1750,4 +1750,4 @@ document.addEventListener('DOMContentLoaded', function() {
     </script>
     """
 
-    return html
+    return page_html
