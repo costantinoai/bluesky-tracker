@@ -385,6 +385,34 @@ class Database:
             """
             )
 
+            # Migration: deduplicate and add unique constraint to existing interactions table
+            # (Older DBs may be missing the UNIQUE constraint, which makes INSERT OR REPLACE insert duplicates.)
+            try:
+                cursor.execute(
+                    """
+                    DELETE FROM interactions
+                    WHERE id NOT IN (
+                        SELECT MIN(id)
+                        FROM interactions
+                        GROUP BY collection_date, user_did
+                    )
+                """
+                )
+                deleted_count = cursor.rowcount
+                if deleted_count > 0:
+                    logger.info(
+                        f"Migration: removed {deleted_count} duplicate interactions entries"
+                    )
+
+                cursor.execute(
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_interactions_unique
+                    ON interactions(collection_date, user_did)
+                """
+                )
+            except sqlite3.OperationalError:
+                pass  # Index already exists or table has constraint
+
             # Indexes for new tables
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_likes_given_author ON likes_given(liked_author_did)"

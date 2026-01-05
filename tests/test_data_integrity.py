@@ -17,6 +17,7 @@ import pytest
 import os
 import sys
 import tempfile
+import sqlite3
 from datetime import datetime, date
 from unittest.mock import Mock, patch, MagicMock
 
@@ -373,3 +374,120 @@ class TestDatabaseCleanup:
             cursor.execute("SELECT COUNT(*) FROM posts_full")
             after = cursor.fetchone()[0]
             assert after == 1
+
+    def test_interactions_migration_dedupes_and_enforces_uniqueness(self):
+        """
+        Regression: older DBs could have an interactions table without the UNIQUE(collection_date, user_did)
+        constraint, causing duplicate rows for the same user/day.
+        """
+        fd, db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+
+        try:
+            # Create an older schema version: interactions table without UNIQUE constraint.
+            with sqlite3.connect(db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    CREATE TABLE interactions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        collection_date DATE NOT NULL,
+                        user_did TEXT NOT NULL,
+                        user_handle TEXT NOT NULL,
+                        user_display_name TEXT,
+                        user_avatar TEXT,
+                        user_bio TEXT,
+                        likes_received INTEGER DEFAULT 0,
+                        replies_received INTEGER DEFAULT 0,
+                        reposts_received INTEGER DEFAULT 0,
+                        quotes_received INTEGER DEFAULT 0,
+                        follows_received INTEGER DEFAULT 0,
+                        interaction_score INTEGER DEFAULT 0,
+                        last_interaction_date TEXT
+                    )
+                    """
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO interactions (collection_date, user_did, user_handle, likes_received)
+                    VALUES ('2024-01-15', 'did:plc:dup', 'dup', 1)
+                    """
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO interactions (collection_date, user_did, user_handle, likes_received)
+                    VALUES ('2024-01-15', 'did:plc:dup', 'dup', 2)
+                    """
+                )
+                conn.commit()
+
+            # init_db() should migrate: dedupe existing data and add a unique index.
+            db = Database(db_path=db_path)
+
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM interactions
+                    WHERE collection_date = '2024-01-15' AND user_did = 'did:plc:dup'
+                    """
+                )
+                assert cursor.fetchone()[0] == 1, "Expected migration to remove duplicates"
+
+                cursor.execute(
+                    "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_interactions_unique'"
+                )
+                assert cursor.fetchone() is not None, "Expected unique index to be created"
+
+            # Verify save_interactions doesn't create duplicates on the migrated DB.
+            db.save_interactions(
+                date(2024, 1, 15),
+                [
+                    {
+                        "did": "did:plc:dup",
+                        "handle": "dup",
+                        "display_name": "Dup",
+                        "likes": 3,
+                        "replies": 0,
+                        "reposts": 0,
+                        "quotes": 0,
+                        "follows": 0,
+                        "score": 3,
+                        "last_interaction": "2024-01-15T12:00:00Z",
+                    }
+                ],
+            )
+            db.save_interactions(
+                date(2024, 1, 15),
+                [
+                    {
+                        "did": "did:plc:dup",
+                        "handle": "dup",
+                        "display_name": "Dup",
+                        "likes": 4,
+                        "replies": 0,
+                        "reposts": 0,
+                        "quotes": 0,
+                        "follows": 0,
+                        "score": 4,
+                        "last_interaction": "2024-01-15T12:30:00Z",
+                    }
+                ],
+            )
+
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM interactions
+                    WHERE collection_date = '2024-01-15' AND user_did = 'did:plc:dup'
+                    """
+                )
+                assert cursor.fetchone()[0] == 1
+        finally:
+            try:
+                os.unlink(db_path)
+            except Exception:
+                pass
