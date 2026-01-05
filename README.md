@@ -101,16 +101,26 @@ The installer will:
 
 ---
 
-## Important: Database Persistence
+## Important: Data Tracking Limitations
 
 **Measurements are only reliable from when you start collecting data.**
 
-- Historical data **cannot** be retrieved before your first collection
-- Unfollower tracking starts from your first run
-- Keep your database backed up - it contains all historical data
-- Run collections daily for accurate trend tracking
+### What CAN be tracked historically (from CAR files):
+- **Outgoing engagement** (likes, reposts, replies you gave) - with accurate timestamps
+- **Your posts** - full history with creation dates
+- **Current followers/following** - who follows you right now
 
-**Recommendation:** The built-in scheduler runs daily at 6 AM (see [Scheduling](#scheduling)).
+### What CANNOT be tracked before first collection:
+- **Follower changes** - new followers and unfollowers are detected by comparing daily snapshots; changes before your first collection are invisible
+- **Engagement received over time** - likes, reposts, replies on your posts are captured as totals at first collection, not when they actually happened
+
+### How received engagement is estimated:
+On first run, the tracker captures current engagement totals for each post. For historical display, this engagement is attributed to the post's creation date. This means:
+- A post from 6 months ago showing 50 likes will attribute all 50 likes to that date
+- Daily engagement trends are only accurate **after** you start tracking
+- The "Engagement Timeline" chart reflects real daily changes only from your first collection onward
+
+**Recommendation:** Start tracking early and run collections daily for accurate trend data. The built-in scheduler runs daily at 6 AM (see [Scheduling](#scheduling)).
 
 ---
 
