@@ -4,25 +4,23 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from pytz import timezone
 from datetime import datetime
+import os
 import logging
 
 from config import Config
 from database import Database
 from templates import get_report_html
 from collector import BlueskyCollector
+from locks import try_file_lock
 
-# Validate configuration before starting
-Config.validate()
-
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-db = Database()
-collector = BlueskyCollector()
+db = None
+collector = None
+scheduler = None
+_collection_lock_path = None
+_app_initialized = False
 
 # Prometheus metrics
 follower_count = Gauge("bluesky_follower_count", "Current follower count")
@@ -41,15 +39,21 @@ collection_duration = Histogram(
     "bluesky_collection_duration_seconds", "Collection job duration"
 )
 
-# Scheduler
-scheduler = BackgroundScheduler(timezone=timezone(Config.TIMEZONE))
-
 
 def scheduled_collection():
     """Run collection job"""
+    if collector is None:
+        logger.warning("Collector not initialized - skipping scheduled collection")
+        return
+
     logger.info("Starting scheduled collection")
-    with collection_duration.time():
-        success = collector.collect()
+    with try_file_lock(_get_collection_lock_path()) as acquired:
+        if not acquired:
+            logger.info("Collection already in progress - skipping scheduled run")
+            return
+
+        with collection_duration.time():
+            success = collector.collect()
 
     if success:
         update_metrics()
@@ -57,6 +61,10 @@ def scheduled_collection():
 
 def update_metrics():
     """Update Prometheus metrics from database"""
+    if db is None:
+        logger.warning("Database not initialized - skipping metrics update")
+        return
+
     try:
         stats = db.get_stats()
         follower_count.set(stats["follower_count"])
@@ -67,6 +75,106 @@ def update_metrics():
         logger.info("Metrics updated successfully")
     except Exception as e:
         logger.error(f"Failed to update metrics: {e}")
+
+
+def _configure_logging():
+    root_logger = logging.getLogger()
+    if root_logger.handlers:
+        return
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    )
+
+
+def _get_collection_lock_path():
+    global _collection_lock_path
+    if _collection_lock_path:
+        return _collection_lock_path
+
+    # Fallback if create_app() has not initialized it yet.
+    db_path = Config.DATABASE_PATH
+    db_dir = os.path.dirname(db_path) or "."
+    _collection_lock_path = os.path.join(db_dir, "collection.lock")
+    return _collection_lock_path
+
+
+def _db_has_collections() -> bool:
+    if db is None:
+        return False
+
+    try:
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM daily_metrics LIMIT 1")
+            return cursor.fetchone() is not None
+    except Exception:
+        return False
+
+
+def create_app(*, start_scheduler: bool = True, run_initial_collection: bool = True):
+    """Create and initialize the Flask application."""
+    global db, collector, scheduler, _collection_lock_path, _app_initialized
+
+    if _app_initialized:
+        return app
+
+    _configure_logging()
+    Config.validate()
+
+    db = Database()
+    collector = BlueskyCollector()
+
+    lock_override = os.getenv("COLLECTION_LOCK_PATH", "").strip()
+    if lock_override:
+        _collection_lock_path = lock_override
+    else:
+        db_dir = os.path.dirname(getattr(db, "db_path", Config.DATABASE_PATH)) or "."
+        _collection_lock_path = os.path.join(db_dir, "collection.lock")
+
+    logger.info("Bluesky Tracker initializing...")
+    if Config.AUTH_ENABLED:
+        logger.info("Authentication: ENABLED (all features available)")
+    else:
+        logger.info("Authentication: DISABLED (interactions feature unavailable)")
+        logger.info("  Using public API and CAR files for data collection")
+        logger.info("  To enable: Set BLUESKY_APP_PASSWORD in .env")
+
+    if run_initial_collection and not _db_has_collections():
+        with try_file_lock(_get_collection_lock_path()) as acquired:
+            if acquired and not _db_has_collections():
+                logger.info("Database is empty. Running initial data collection...")
+                try:
+                    with collection_duration.time():
+                        collector.collect()
+                except Exception as e:
+                    logger.error(f"Initial collection failed: {e}")
+                    logger.info("You can trigger collection manually via: /api/collect")
+
+    try:
+        update_metrics()
+    except Exception as e:
+        logger.warning(f"Could not initialize metrics: {e}")
+
+    if start_scheduler:
+        scheduler = BackgroundScheduler(timezone=timezone(Config.TIMEZONE))
+        scheduler.add_job(
+            scheduled_collection,
+            trigger=CronTrigger(hour=6, minute=0, timezone=Config.TIMEZONE),
+            id="daily_collection",
+            name="Daily Bluesky collection",
+            replace_existing=True,
+        )
+        scheduler.start()
+
+        logger.info("Scheduler started")
+        logger.info(f"Scheduled collection: daily at {Config.COLLECTION_TIME} {Config.TIMEZONE}")
+
+    logger.info("Bluesky Tracker started successfully")
+    logger.info(f"Tracking: {Config.BLUESKY_HANDLE}")
+
+    _app_initialized = True
+    return app
 
 
 # API Endpoints
@@ -199,7 +307,24 @@ def api_collect():
     """Trigger manual data collection"""
     try:
         logger.info("Manual collection triggered via API")
-        success = collector.collect()
+        if collector is None:
+            api_requests.labels(endpoint="/api/collect", status="error").inc()
+            return jsonify({"success": False, "message": "Collector not initialized"}), 500
+
+        with try_file_lock(_get_collection_lock_path()) as acquired:
+            if not acquired:
+                api_requests.labels(endpoint="/api/collect", status="locked").inc()
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": "Collection already in progress",
+                        }
+                    ),
+                    409,
+                )
+
+            success = collector.collect()
 
         if success:
             update_metrics()
@@ -423,7 +548,24 @@ def api_backfill():
     """Trigger CAR file backfill for historical timestamps"""
     try:
         logger.info("Backfill triggered via API")
-        result = collector.backfill_historical_data()
+        if collector is None:
+            api_requests.labels(endpoint="/api/backfill", status="error").inc()
+            return jsonify({"status": "error", "error": "Collector not initialized"}), 500
+
+        with try_file_lock(_get_collection_lock_path()) as acquired:
+            if not acquired:
+                api_requests.labels(endpoint="/api/backfill", status="locked").inc()
+                return (
+                    jsonify(
+                        {
+                            "status": "error",
+                            "error": "Collection/backfill already in progress",
+                        }
+                    ),
+                    409,
+                )
+
+            result = collector.backfill_historical_data()
 
         if result.get("status") == "success":
             api_requests.labels(endpoint="/api/backfill", status="success").inc()
@@ -604,6 +746,10 @@ def health():
 @app.route("/metrics")
 def metrics():
     """Prometheus metrics endpoint"""
+    try:
+        update_metrics()
+    except Exception:
+        pass
     return generate_latest(), 200, {"Content-Type": "text/plain; charset=utf-8"}
 
 
@@ -1086,69 +1232,8 @@ def api_stats_summary():
         logger.error(f"/api/graphs/stats-summary error: {e}")
         api_requests.labels(endpoint="/api/graphs/stats-summary", status="error").inc()
         return jsonify({"error": str(e)}), 500
-
-
-def init_app():
-    """Initialize the application (scheduler, initial collection, etc.)"""
-    logger.info("Bluesky Tracker initializing...")
-
-    # Show auth status
-    if Config.AUTH_ENABLED:
-        logger.info("Authentication: ENABLED (all features available)")
-    else:
-        logger.info("Authentication: DISABLED (interactions feature unavailable)")
-        logger.info("  Using public API and CAR files for data collection")
-        logger.info("  To enable: Set BLUESKY_APP_PASSWORD in .env")
-
-    # Check if database is empty (no collections yet)
-    db_empty = False
-    try:
-        stats = db.get_stats(days=1)
-        db_empty = stats["follower_count"] == 0 and stats["following_count"] == 0
-    except Exception:
-        db_empty = True
-
-    # If database is empty, trigger initial collection
-    if db_empty:
-        logger.info("Database is empty. Running initial data collection...")
-        try:
-            from collector import BlueskyCollector
-
-            new_collector = BlueskyCollector()
-            new_collector.collect()
-            logger.info("Initial data collection completed")
-        except Exception as e:
-            logger.error(f"Initial collection failed: {e}")
-            logger.info("You can trigger collection manually via: /api/collect")
-
-    # Initialize metrics
-    try:
-        update_metrics()
-    except Exception as e:
-        logger.warning(f"Could not initialize metrics: {e}")
-
-    # Schedule daily collection at 6 AM
-    scheduler.add_job(
-        scheduled_collection,
-        trigger=CronTrigger(hour=6, minute=0, timezone=Config.TIMEZONE),
-        id="daily_collection",
-        name="Daily Bluesky collection",
-        replace_existing=True,
-    )
-    scheduler.start()
-
-    logger.info(f"Bluesky Tracker started successfully")
-    logger.info(f"Tracking: {Config.BLUESKY_HANDLE}")
-    logger.info(
-        f"Scheduled collection: daily at {Config.COLLECTION_TIME} {Config.TIMEZONE}"
-    )
-
-
-# Initialize when module is loaded (works with both gunicorn and python app.py)
-init_app()
-
-
 if __name__ == "__main__":
     # Run Flask development server
+    create_app()
     logger.info(f"Starting development server on port {Config.PORT}")
     app.run(host="0.0.0.0", port=Config.PORT, threaded=True)
