@@ -34,8 +34,8 @@ services:
       - ./data:/app/data
 
     # Environment variables from .env file
-    # Required: BLUESKY_HANDLE and BLUESKY_APP_PASSWORD
-    # Optional: PORT, TZ, DATABASE_PATH
+    # Required: BLUESKY_HANDLE
+    # Optional: BLUESKY_APP_PASSWORD, PORT, TZ, COLLECTION_TIME, DATABASE_PATH
     env_file:
       - .env
 

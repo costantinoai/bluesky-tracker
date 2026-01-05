@@ -54,15 +54,18 @@ class Config:
     BLUESKY_API_URL = "https://bsky.social"  # For authenticated requests
     PUBLIC_API_URL = "https://public.api.bsky.app"  # For public requests (no auth)
     PLC_DIRECTORY_URL = "https://plc.directory"  # For DID resolution
-    REQUEST_DELAY = 0.7  # Seconds between API calls
-    MAX_RETRIES = 3
+    REQUEST_DELAY = float(os.getenv("REQUEST_DELAY", "0.7"))  # Seconds between API calls
+    MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
+    RETRY_BACKOFF_FACTOR = float(os.getenv("RETRY_BACKOFF_FACTOR", "0.5"))
+    HTTP_TIMEOUT = int(os.getenv("HTTP_TIMEOUT", "30"))
+    CAR_DOWNLOAD_TIMEOUT = int(os.getenv("CAR_DOWNLOAD_TIMEOUT", "120"))
 
     # Database
     DATABASE_PATH = os.getenv("DATABASE_PATH", "/app/data/bluesky.db")
 
     # Scheduler
-    COLLECTION_TIME = "06:00"  # 6 AM Europe/Brussels
-    TIMEZONE = "Europe/Brussels"
+    COLLECTION_TIME = os.getenv("COLLECTION_TIME", "06:00")  # Default: 6 AM
+    TIMEZONE = os.getenv("TZ", os.getenv("TIMEZONE", "Europe/Brussels"))
 
     # Flask
     PORT = int(os.getenv("PORT", 8095))

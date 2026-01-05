@@ -129,22 +129,17 @@ else
     done
 
     echo ""
-    echo "To create an app password:"
+    echo "App password is optional (enables Top Interactors)."
+    echo "To create one:"
     echo "  1. Go to https://bsky.app/settings/app-passwords"
     echo "  2. Click 'Add App Password'"
     echo "  3. Name it 'Bluesky Tracker'"
     echo "  4. Copy the generated password"
     echo ""
 
-    # Get app password
-    while true; do
-        read -sp "Bluesky app password: " PASSWORD
-        echo ""
-        if [ -n "$PASSWORD" ]; then
-            break
-        fi
-        echo -e "${RED}Password cannot be empty${NC}"
-    done
+    # Get app password (optional)
+    read -sp "Bluesky app password (optional, press Enter to skip): " PASSWORD
+    echo ""
 
     # Update .env file
     sed -i.bak "s|BLUESKY_HANDLE=.*|BLUESKY_HANDLE=${HANDLE}|g" .env

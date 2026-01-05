@@ -112,6 +112,27 @@ def _db_has_collections() -> bool:
         return False
 
 
+def _parse_collection_time(value: str) -> tuple[int, int]:
+    try:
+        hour_str, minute_str = str(value).strip().split(":", 1)
+        hour = int(hour_str)
+        minute = int(minute_str)
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            raise ValueError("out of range")
+        return hour, minute
+    except Exception:
+        logger.warning(f"Invalid COLLECTION_TIME={value!r}; defaulting to 06:00")
+        return 6, 0
+
+
+def _get_scheduler_timezone():
+    try:
+        return timezone(Config.TIMEZONE)
+    except Exception:
+        logger.warning(f"Invalid TZ={Config.TIMEZONE!r}; defaulting to UTC")
+        return timezone("UTC")
+
+
 def create_app(*, start_scheduler: bool = True, run_initial_collection: bool = True):
     """Create and initialize the Flask application."""
     global db, collector, scheduler, _collection_lock_path, _app_initialized
@@ -157,10 +178,13 @@ def create_app(*, start_scheduler: bool = True, run_initial_collection: bool = T
         logger.warning(f"Could not initialize metrics: {e}")
 
     if start_scheduler:
-        scheduler = BackgroundScheduler(timezone=timezone(Config.TIMEZONE))
+        tz = _get_scheduler_timezone()
+        hour, minute = _parse_collection_time(Config.COLLECTION_TIME)
+
+        scheduler = BackgroundScheduler(timezone=tz)
         scheduler.add_job(
             scheduled_collection,
-            trigger=CronTrigger(hour=6, minute=0, timezone=Config.TIMEZONE),
+            trigger=CronTrigger(hour=hour, minute=minute, timezone=tz),
             id="daily_collection",
             name="Daily Bluesky collection",
             replace_existing=True,
