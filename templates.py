@@ -1530,7 +1530,7 @@ async function loadTopPosts(days) {
             const indirectBadge = totalIndirect > 0 ?
                 `<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #E1F5FE; border-radius: 12px; font-size: 13px;" title="Indirect Engagement from quote posts"><span class="material-icons" style="font-size: 16px; color: #0277BD;">add_circle</span><span style="font-weight: 500; color: #0277BD;">+${totalIndirect} indirect</span></div>` : '';
 
-            page_html += `
+            html += `
                 <div class="post-card" onclick="window.open('${postUrl}', '_blank')" style="background: white; border: 1px solid #E0E0E0; border-radius: 12px; padding: 0; margin-bottom: 16px; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden;">
                     <div style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px 16px;">
                         ${userAvatarUrl
@@ -1602,7 +1602,7 @@ async function loadUnfollowers(days) {
                     <div style="width:56px;height:56px;border-radius:50%;background:#CAC4D0;display:${safeAvatarUrl ? 'none' : 'flex'};align-items:center;justify-content:center;font-size:24px;color:#666;">${initial}</div>
                 </div>`;
 
-            page_html += `
+            html += `
                 <div class="user-card" onclick="window.open('${profileUrl}', '_blank')">
                     ${avatarHtml}
                     <div class="user-content">
@@ -1615,7 +1615,7 @@ async function loadUnfollowers(days) {
                     <div class="user-action"><span class="material-icons">open_in_new</span></div>
                 </div>`;
         }
-        page_html += '</div>';
+        html += '</div>';
         container.innerHTML = html;
     } catch (error) {
         console.error('Error loading unfollowers:', error);
@@ -1668,7 +1668,7 @@ async function loadTopInteractors(days) {
             if (quotes > 0) badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #B3E5FC; color: #01579B; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">format_quote</span>${quotes}</span>`;
             if (follows > 0) badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #BBDEFB; color: #1976D2; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">person_add</span>${follows}</span>`;
 
-            page_html += `
+            html += `
                 <div class="interactor-card" onclick="window.open('${profileUrl}', '_blank')">
                     ${avatarHtml}
                     <div style="flex: 1;">
@@ -1681,7 +1681,7 @@ async function loadTopInteractors(days) {
                     </div>
                 </div>`;
         }
-        page_html += '</div>';
+        html += '</div>';
         container.innerHTML = html;
     } catch (error) {
         console.error('Error loading top interactors:', error);
