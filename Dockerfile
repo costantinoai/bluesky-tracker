@@ -2,6 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+ARG APP_VERSION=dev
+ARG APP_REVISION=unknown
+ARG APP_BUILD_DATE=
+ENV APP_VERSION=$APP_VERSION \
+    APP_REVISION=$APP_REVISION \
+    APP_BUILD_DATE=$APP_BUILD_DATE
+
 # Install curl for healthcheck and build dependencies for cffi
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \

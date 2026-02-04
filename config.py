@@ -3,6 +3,11 @@ import sys
 
 
 class Config:
+    # Build metadata (injected by Docker/GitHub Actions when available)
+    APP_VERSION = os.getenv("APP_VERSION", "dev")
+    APP_REVISION = os.getenv("APP_REVISION", "unknown")
+    APP_BUILD_DATE = os.getenv("APP_BUILD_DATE", "")
+
     # Bluesky account to track
     # Note: handle should NOT include @ symbol
     # REQUIRED: Set this in your .env file

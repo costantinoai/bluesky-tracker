@@ -1,5 +1,6 @@
 """
-Modern Material Design 3 HTML templates for Bluesky Tracker with Expandable Lists
+Bluesky Tracker - Modern Dashboard UI
+A clean, professional analytics dashboard with dark/light theme support.
 """
 
 import html
@@ -8,7 +9,7 @@ from urllib.parse import quote
 
 
 def get_report_html(data):
-    """Generate modern Material Design 3 report page with expandable user lists"""
+    """Generate modern dashboard with professional aesthetics"""
 
     # Extract data
     stats = data.get("stats", {})
@@ -18,21 +19,19 @@ def get_report_html(data):
     mutual_follows = data.get("mutual_follows", [])
     hidden_analytics = data.get("hidden_analytics", {})
     hidden_categories = data.get("hidden_categories", {})
-    change_history = data.get("change_history", [])
     top_posts = data.get("top_posts", [])
-    advanced_metrics = data.get("advanced_metrics", {})
     top_interactors = data.get("top_interactors", [])
     last_updated = data.get("last_updated", "Never")
     bluesky_handle = data.get("bluesky_handle", "your-handle.bsky.social")
-    auth_enabled = data.get("auth_enabled", True)  # For showing auth status
+    auth_enabled = data.get("auth_enabled", True)
 
-    def esc_text(value):
+    def esc(value):
         return html.escape("" if value is None else str(value))
 
     def esc_attr(value):
         return html.escape("" if value is None else str(value), quote=True)
 
-    def safe_http_url(url):
+    def safe_url(url):
         if not url:
             return ""
         url = str(url).strip()
@@ -42,1711 +41,1002 @@ def get_report_html(data):
 
     bluesky_handle_js = json.dumps(str(bluesky_handle or ""))
 
-    # Calculate follower change badge (30d)
+    # Calculate metrics
     new_followers = stats.get("new_followers_30d", 0)
     lost_followers = stats.get("unfollowers_30d", 0)
     follower_change = new_followers - lost_followers
-    if follower_change > 0:
-        follower_change_badge = f'<span class="change-badge positive">+{follower_change}</span>'
-    elif follower_change < 0:
-        follower_change_badge = f'<span class="change-badge negative">{follower_change}</span>'
-    else:
-        follower_change_badge = ''
 
-    # Helper function for user cards with hiding capability
+    # Hidden accounts data
+    hidden_current = hidden_analytics.get("current", {})
+    hidden_count = hidden_current.get("hidden_followers", 0)
+    blocked_accounts = hidden_categories.get("blocked", {}).get("accounts", [])
+
+    # SVG Icons (Lucide-style, clean)
+    icons = {
+        "users": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+        "user-plus": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>',
+        "user-minus": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="22" y1="11" x2="16" y2="11"/></svg>',
+        "handshake": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/></svg>',
+        "user-x": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg>',
+        "star": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+        "trending-up": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>',
+        "activity": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+        "bar-chart": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>',
+        "heart": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>',
+        "repeat": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>',
+        "message": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>',
+        "bookmark": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>',
+        "refresh": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>',
+        "chevron-down": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+        "external": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
+        "eye-off": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>',
+        "scale": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>',
+        "sun": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>',
+        "moon": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>',
+        "search": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+        "zap": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+        "ghost": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 10h.01"/><path d="M15 10h.01"/><path d="M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z"/></svg>',
+        "info": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
+    }
+
+    def icon(name, size=20):
+        return f'<span style="display:inline-flex;width:{size}px;height:{size}px;flex-shrink:0;">{icons.get(name, "")}</span>'
+
+    # User card helper
     def user_card(user, meta_text="", show_bio=True, index=0):
         handle_raw = user.get("handle", "") or ""
         display_name_raw = user.get("display_name") or handle_raw
-        avatar_url_raw = safe_http_url(user.get("avatar_url", ""))
+        avatar_url_raw = safe_url(user.get("avatar_url", ""))
         bio_raw = user.get("bio", "") or ""
+        initial = (display_name_raw[0] if display_name_raw else "?").upper()
 
-        avatar_html = ""
-        if avatar_url_raw and avatar_url_raw.strip():
-            avatar_html = (
-                f'<div class="user-avatar"><img src="{esc_attr(avatar_url_raw)}" '
-                f'alt="{esc_attr(display_name_raw)}" onerror="this.style.display=\'none\'"></div>'
-            )
+        onerror_handler = 'this.style.display="none";this.nextElementSibling.style.display="flex"'
+        img_tag = f"<img src='{esc_attr(avatar_url_raw)}' alt='' loading='lazy' onerror='{onerror_handler}'>" if avatar_url_raw else ""
+        avatar_html = f'''<div class="avatar">
+            {img_tag}
+            <span class="avatar-fallback">{esc(initial)}</span>
+        </div>'''
 
         bio_html = ""
         if show_bio and bio_raw:
-            bio_truncated = bio_raw[:120] + ("..." if len(bio_raw) > 120 else "")
-            bio_html = f'<p class="user-bio">{esc_text(bio_truncated)}</p>'
+            bio_truncated = bio_raw[:100] + ("..." if len(bio_raw) > 100 else "")
+            bio_html = f'<p class="user-bio">{esc(bio_truncated)}</p>'
 
-        meta_html = f'<span class="user-meta">{esc_text(meta_text)}</span>' if meta_text else ""
-        hidden_class = " hidden-card" if index >= 50 else ""
-
+        meta_html = f'<span class="tag tag-muted">{esc(meta_text)}</span>' if meta_text else ""
+        hidden_class = " hidden" if index >= 50 else ""
         profile_url = f"https://bsky.app/profile/{quote(handle_raw, safe='')}"
 
-        return f"""<div class="user-card{hidden_class}" onclick="window.open('{esc_attr(profile_url)}', '_blank')">
+        return f'''<a href="{esc_attr(profile_url)}" target="_blank" rel="noopener" class="user-card{hidden_class}" data-handle="{esc_attr(handle_raw.lower())}">
             {avatar_html}
-            <div class="user-content">
-                <div class="user-header">
-                    <h4 class="user-name">{esc_text(display_name_raw)}</h4>
-                    {meta_html}
-                </div>
-                <p class="user-handle">@{esc_text(handle_raw)}</p>
+            <div class="user-info">
+                <div class="user-name">{esc(display_name_raw)}{meta_html}</div>
+                <div class="user-handle">@{esc(handle_raw)}</div>
                 {bio_html}
             </div>
-            <div class="user-action">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/>
-                </svg>
-            </div>
-        </div>"""
+            {icon("external", 14)}
+        </a>'''
 
-    # HTML with embedded CSS
-    page_html = f"""<!DOCTYPE html>
-<html lang="en">
+    # Generate user lists
+    def generate_user_list(users, grid_id):
+        if not users:
+            return '<div class="empty">No accounts found</div>'
+        cards = "".join([user_card(u, "", True, i) for i, u in enumerate(users)])
+        show_more = f'<button class="btn btn-text" onclick="showMore(\'{grid_id}\')">Show all {len(users)}</button>' if len(users) > 50 else ""
+        return f'<div class="user-grid" id="{grid_id}">{cards}</div>{show_more}'
+
+    mutual_html = generate_user_list(mutual_follows, "mutual-grid")
+    non_mutual_html = generate_user_list(non_mutual, "non-mutual-grid")
+    followers_only_html = generate_user_list(followers_only, "followers-only-grid")
+
+    # Hidden accounts section
+    hidden_section = ""
+    if hidden_count > 0 or blocked_accounts:
+        blocked_html = ""
+        if blocked_accounts:
+            blocked_items = "".join([f'<a href="https://bsky.app/profile/{quote(str(u.get("handle", "")), safe="")}" target="_blank" class="blocked-item">@{esc(u.get("handle", ""))}</a>' for u in blocked_accounts[:10]])
+            blocked_html = f'<div class="subsection"><h4>Blocked by you ({len(blocked_accounts)})</h4><div class="blocked-list">{blocked_items}</div></div>'
+
+        suspected = hidden_current.get("suspected_blocks_or_suspensions", 0)
+        suspected_html = f'<div class="subsection muted"><div class="info-row">{icon("info", 16)}<span>{suspected} accounts unavailable</span></div><p class="info-text">May have blocked you, deactivated, or been suspended.</p></div>' if suspected > 0 else ""
+
+        hidden_section = f'''
+        <section class="card" id="hidden-section">
+            <div class="card-header" onclick="toggleSection('hidden-section')">
+                <div class="card-title">{icon("eye-off", 18)}<span>Hidden Accounts</span></div>
+                <div class="card-meta"><span class="badge">{hidden_count}</span>{icon("chevron-down", 18)}</div>
+            </div>
+            <div class="card-body">
+                <div class="hidden-stats">
+                    <div class="stat-mini"><span class="stat-mini-value">{hidden_current.get('profile_followers', 0)}</span><span class="stat-mini-label">Profile</span></div>
+                    <span class="stat-divider">−</span>
+                    <div class="stat-mini"><span class="stat-mini-value">{hidden_current.get('api_followers', 0)}</span><span class="stat-mini-label">API</span></div>
+                    <span class="stat-divider">=</span>
+                    <div class="stat-mini highlight"><span class="stat-mini-value">{hidden_count}</span><span class="stat-mini-label">Hidden</span></div>
+                </div>
+                {blocked_html}{suspected_html}
+            </div>
+        </section>'''
+
+    page_html = f'''<!DOCTYPE html>
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bluesky Analytics - Modern Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <title>Bluesky Analytics</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
+        *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+
         :root {{
-            --md-primary: #1976D2; --md-primary-container: #BBDEFB; --md-on-primary: #FFFFFF;
-            --md-secondary: #0288D1; --md-secondary-container: #B3E5FC;
-            --md-tertiary: #0097A7; --md-success: #00897B; --md-success-container: #B2DFDB;
-            --md-error: #D32F2F; --md-error-container: #FFCDD2;
-            --md-surface: #FEF7FF; --md-surface-variant: #E7E0EC;
-            --md-on-surface: #1C1B1F; --md-on-surface-variant: #49454F;
-            --md-outline: #79747E; --md-outline-variant: #CAC4D0;
-            --md-elevation-1: 0px 1px 2px 0px rgba(0, 0, 0, 0.3), 0px 1px 3px 1px rgba(0, 0, 0, 0.15);
-            --md-elevation-2: 0px 1px 2px 0px rgba(0, 0, 0, 0.3), 0px 2px 6px 2px rgba(0, 0, 0, 0.15);
-            --md-elevation-3: 0px 4px 8px 3px rgba(0, 0, 0, 0.15), 0px 1px 3px 0px rgba(0, 0, 0, 0.3);
+            --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --transition: 150ms ease;
         }}
 
-        .material-icons {{ font-family: 'Material Icons'; font-weight: normal; font-style: normal;
-                          font-size: 24px; display: inline-block; line-height: 1; text-transform: none;
-                          letter-spacing: normal; word-wrap: normal; white-space: nowrap; direction: ltr; }}
-        .section-icon .material-icons {{ font-size: 28px; }}
-        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{ font-family: 'Inter', sans-serif; background: #E3F2FD;
-               color: var(--md-on-surface); line-height: 1.6; min-height: 100vh; padding: 24px; }}
-        .container {{ max-width: 1200px; margin: 0 auto; animation: fadeIn 0.6s ease-out; }}
-        @keyframes fadeIn {{ from {{ opacity: 0; transform: translateY(20px); }} to {{ opacity: 1; transform: translateY(0); }} }}
-        .header {{ background: white; border-radius: 28px; padding: 32px; margin-bottom: 24px;
-                   box-shadow: var(--md-elevation-2); position: relative; overflow: hidden; }}
-        .header::before {{ content: ''; position: absolute; top: 0; left: 0; right: 0; height: 6px;
-                          background: #1e88e5; }}
-        .header-content {{ display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }}
-        .header-left {{ display: flex; align-items: center; gap: 16px; }}
-        .avatar-large {{ width: 64px; height: 64px; border-radius: 50%;
-                         background: transparent;
-                         display: flex; align-items: center; justify-content: center; color: white;
-                         font-size: 28px; font-weight: 600; box-shadow: var(--md-elevation-2); }}
-        .header-text h1 {{ font-size: 28px; font-weight: 700; color: var(--md-on-surface); margin-bottom: 4px; }}
-        .header-text p {{ color: var(--md-on-surface-variant); font-size: 14px; }}
-        .auth-badge {{ display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px;
-                       border-radius: 28px; font-size: 13px; font-weight: 500;
-                       background: var(--md-success-container); color: var(--md-success); }}
-        .stats-grid {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }}
-        @media (max-width: 1000px) {{ .stats-grid {{ grid-template-columns: repeat(3, 1fr); }} }}
-        @media (max-width: 600px) {{ .stats-grid {{ grid-template-columns: repeat(2, 1fr); }} }}
-        .stat-card {{ background: white; border-radius: 16px; padding: 24px; box-shadow: var(--md-elevation-1);
-                      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; cursor: pointer; }}
-        .stat-card::before {{ content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
-                             background: var(--card-color, var(--md-primary));
-                             transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1); }}
-        .stat-card:hover {{ transform: translateY(-4px); box-shadow: var(--md-elevation-3); }}
-        .stat-card:hover::before {{ height: 6px; }}
-        .stat-card.primary {{ --card-color: var(--md-primary); }}
-        .stat-card.secondary {{ --card-color: var(--md-secondary); }}
-        .stat-card.tertiary {{ --card-color: var(--md-tertiary); }}
-        .stat-card.success {{ --card-color: var(--md-success); }}
-        .stat-card.error {{ --card-color: var(--md-error); }}
-        .stat-header {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }}
-        .stat-label {{ font-size: 13px; font-weight: 500; color: var(--md-on-surface-variant);
-                       text-transform: uppercase; letter-spacing: 0.5px; }}
-        .stat-icon {{ font-size: 24px; }}
-        .stat-value {{ font-size: 36px; font-weight: 700; color: var(--md-on-surface); line-height: 1; display: flex; align-items: baseline; gap: 8px; }}
-        .stat-value .change-badge {{ font-size: 14px; font-weight: 600; padding: 2px 8px; border-radius: 12px; }}
-        .stat-value .change-badge.positive {{ background: var(--md-success-container); color: var(--md-success); }}
-        .stat-value .change-badge.negative {{ background: var(--md-error-container); color: var(--md-error); }}
-        .stat-value .change-badge.neutral {{ display: none; }}
-        .stat-change {{ font-size: 13px; color: var(--md-on-surface-variant); margin-top: 4px; }}
-        .section-card {{ background: white; border-radius: 16px; margin-bottom: 16px;
-                         box-shadow: var(--md-elevation-1); overflow: hidden; transition: box-shadow 0.3s ease; }}
-        .section-card:hover {{ box-shadow: var(--md-elevation-2); }}
-        .section-header {{ padding: 24px; cursor: pointer; user-select: none; display: flex;
-                          align-items: center; justify-content: space-between; transition: background 0.2s ease; }}
-        .section-header:hover {{ background: var(--md-surface-variant); }}
-        .section-title {{ display: flex; align-items: center; gap: 16px; flex: 1; }}
-        .section-icon {{ font-size: 32px; width: 48px; height: 48px; display: flex; align-items: center;
-                        justify-content: center; color: #1976D2; }}
-        .section-text h3 {{ font-size: 20px; font-weight: 600; color: var(--md-on-surface); margin-bottom: 4px; }}
-        .section-text p {{ font-size: 14px; color: var(--md-on-surface-variant); }}
-        .section-badge {{ display: inline-flex; align-items: center; justify-content: center; min-width: 32px;
-                         height: 32px; padding: 0 12px; background: var(--md-primary); color: var(--md-on-primary);
-                         border-radius: 28px; font-size: 14px; font-weight: 600; margin-right: 16px; }}
-        .section-chevron {{ width: 24px; height: 24px; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }}
-        .section-chevron.expanded {{ transform: rotate(180deg); }}
-        .section-content {{ max-height: 0; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1); }}
-        .section-content.expanded {{ max-height: 50000px; }}
-        .section-body {{ padding: 0 24px 24px; }}
-        .user-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }}
-        .user-card {{ background: var(--md-surface); border: 1px solid var(--md-outline-variant);
-                      border-radius: 12px; padding: 16px; display: flex; gap: 16px;
-                      transition: all 0.2s ease; cursor: pointer; }}
-        .user-card.hidden-card {{ display: none; }}
-        .user-card:hover {{ border-color: var(--md-primary); background: var(--md-primary-container);
-                           transform: translateX(4px); }}
-        .interactor-card {{ background: white; border: 1px solid var(--md-outline-variant); border-radius: 12px;
-                           padding: 16px; display: flex; gap: 16px; transition: all 0.2s ease; cursor: pointer; }}
-        .interactor-card:hover {{ border-color: var(--md-primary); background: var(--md-primary-container);
-                                 transform: translateX(4px); }}
-        .user-avatar img {{ width: 56px; height: 56px; border-radius: 50%; object-fit: cover;
-                           border: 2px solid var(--md-outline-variant); }}
-        .user-content {{ flex: 1; min-width: 0; }}
-        .user-header {{ display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }}
-        .user-name {{ font-size: 16px; font-weight: 600; color: var(--md-on-surface);
-                     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
-        .user-meta {{ font-size: 11px; padding: 2px 8px; background: var(--md-error-container);
-                     color: var(--md-error); border-radius: 4px; font-weight: 500; }}
-        .user-handle {{ font-size: 14px; color: var(--md-on-surface-variant); margin-bottom: 4px; }}
-        .user-bio {{ font-size: 13px; color: var(--md-on-surface-variant); line-height: 1.4; }}
-        .user-action {{ flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%; display: flex;
-                       align-items: center; justify-content: center; color: var(--md-on-surface-variant);
-                       transition: all 0.2s ease; }}
-        .user-card:hover .user-action {{ background: var(--md-primary); color: var(--md-on-primary); }}
-        .show-more-btn {{ display: inline-flex; align-items: center; gap: 8px; margin-top: 16px;
-                         padding: 12px 24px; background: var(--md-primary); color: var(--md-on-primary);
-                         border: none; border-radius: 28px; font-size: 14px; font-weight: 500; cursor: pointer;
-                         transition: all 0.2s ease; box-shadow: var(--md-elevation-1); }}
-        .show-more-btn:hover {{ background: var(--md-secondary); box-shadow: var(--md-elevation-2);
-                                transform: translateY(-2px); }}
-        .show-more-btn:active {{ transform: translateY(0); }}
-        .show-more-container {{ text-align: center; margin-top: 16px; }}
-        .empty-state {{ text-align: center; padding: 48px 24px; color: var(--md-on-surface-variant); }}
-        .empty-state-icon {{ font-size: 64px; margin-bottom: 16px; opacity: 0.5; }}
-        .empty-state h4 {{ font-size: 18px; font-weight: 600; color: var(--md-on-surface); margin-bottom: 8px; }}
-        @media (max-width: 768px) {{
-            body {{ padding: 16px; }}
-            .stats-grid {{ grid-template-columns: 1fr; }}
-            .user-grid {{ grid-template-columns: 1fr; }}
+        [data-theme="light"] {{
+            --bg-0: #ffffff;
+            --bg-1: #f9fafb;
+            --bg-2: #f3f4f6;
+            --bg-3: #e5e7eb;
+            --border: #e5e7eb;
+            --border-hover: #d1d5db;
+            --text-0: #111827;
+            --text-1: #374151;
+            --text-2: #6b7280;
+            --text-3: #9ca3af;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --accent-bg: #eff6ff;
+            --success: #059669;
+            --success-bg: #ecfdf5;
+            --error: #dc2626;
+            --error-bg: #fef2f2;
+            --warning: #d97706;
+            --warning-bg: #fffbeb;
         }}
+
+        [data-theme="dark"] {{
+            --bg-0: #0f0f0f;
+            --bg-1: #171717;
+            --bg-2: #1f1f1f;
+            --bg-3: #2a2a2a;
+            --border: #2a2a2a;
+            --border-hover: #3a3a3a;
+            --text-0: #fafafa;
+            --text-1: #e5e5e5;
+            --text-2: #a3a3a3;
+            --text-3: #737373;
+            --accent: #3b82f6;
+            --accent-hover: #60a5fa;
+            --accent-bg: rgba(59,130,246,0.1);
+            --success: #10b981;
+            --success-bg: rgba(16,185,129,0.1);
+            --error: #ef4444;
+            --error-bg: rgba(239,68,68,0.1);
+            --warning: #f59e0b;
+            --warning-bg: rgba(245,158,11,0.1);
+        }}
+
+        html {{ font-size: 14px; }}
+        body {{
+            font-family: var(--font);
+            background: var(--bg-1);
+            color: var(--text-0);
+            line-height: 1.5;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }}
+
+        .app {{ max-width: 1280px; margin: 0 auto; padding: 24px; }}
+        @media (max-width: 640px) {{ .app {{ padding: 16px; }} }}
+
+        /* Header */
+        .header {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding-bottom: 24px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+        }}
+        .header-left {{ display: flex; align-items: center; gap: 12px; }}
+        .header-avatar {{
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            background: var(--accent);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 600; font-size: 16px;
+            overflow: hidden; flex-shrink: 0;
+        }}
+        .header-avatar img {{ width: 100%; height: 100%; object-fit: cover; }}
+        .header-title {{ font-size: 18px; font-weight: 600; }}
+        .header-handle {{ font-size: 13px; color: var(--text-2); }}
+        .header-right {{ display: flex; align-items: center; gap: 8px; }}
+        .header-meta {{ font-size: 12px; color: var(--text-3); margin-right: 8px; }}
+
+        /* Buttons */
+        .btn {{
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 8px 14px;
+            font-family: var(--font); font-size: 13px; font-weight: 500;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background: var(--bg-0);
+            color: var(--text-1);
+            cursor: pointer;
+            transition: all var(--transition);
+        }}
+        .btn:hover {{ background: var(--bg-2); border-color: var(--border-hover); }}
+        .btn-primary {{ background: var(--accent); border-color: var(--accent); color: white; }}
+        .btn-primary:hover {{ background: var(--accent-hover); border-color: var(--accent-hover); }}
+        .btn-icon {{ padding: 8px; }}
+        .btn-text {{ background: transparent; border: none; color: var(--accent); padding: 8px 12px; }}
+        .btn-text:hover {{ background: var(--accent-bg); }}
+        .btn.loading svg {{ animation: spin 1s linear infinite; }}
+        @keyframes spin {{ to {{ transform: rotate(360deg); }} }}
+
+        /* Stats Grid */
+        .stats {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }}
+        @media (max-width: 900px) {{ .stats {{ grid-template-columns: repeat(3, 1fr); }} }}
+        @media (max-width: 600px) {{ .stats {{ grid-template-columns: repeat(2, 1fr); }} }}
+
+        .stat {{
+            background: var(--bg-0);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 16px;
+        }}
+        .stat-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }}
+        .stat-label {{ font-size: 12px; font-weight: 500; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.5px; }}
+        .stat-icon {{ color: var(--text-3); }}
+        .stat-value {{ font-size: 28px; font-weight: 700; display: flex; align-items: baseline; gap: 8px; }}
+        .stat-change {{ font-size: 12px; font-weight: 600; padding: 2px 6px; border-radius: 4px; }}
+        .stat-change.up {{ background: var(--success-bg); color: var(--success); }}
+        .stat-change.down {{ background: var(--error-bg); color: var(--error); }}
+        .stat-footer {{ font-size: 11px; color: var(--text-3); margin-top: 4px; }}
+
+        /* Time Filter */
+        .time-filter {{
+            display: flex; align-items: center; justify-content: center; gap: 4px;
+            padding: 12px; margin-bottom: 24px;
+            background: var(--bg-0);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+        }}
+        .time-filter-label {{ font-size: 12px; color: var(--text-2); margin-right: 8px; }}
+        .time-btn {{
+            padding: 6px 12px; font-size: 12px; font-weight: 500;
+            background: transparent; border: none; border-radius: var(--radius-sm);
+            color: var(--text-2); cursor: pointer; transition: all var(--transition);
+        }}
+        .time-btn:hover {{ color: var(--text-0); background: var(--bg-2); }}
+        .time-btn.active {{ color: var(--accent); background: var(--accent-bg); }}
+
+        /* Cards */
+        .card {{
+            background: var(--bg-0);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            margin-bottom: 16px;
+            overflow: hidden;
+        }}
+        .card-header {{
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px; cursor: pointer;
+            transition: background var(--transition);
+        }}
+        .card-header:hover {{ background: var(--bg-2); }}
+        .card-title {{ display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; }}
+        .card-meta {{ display: flex; align-items: center; gap: 10px; color: var(--text-2); }}
+        .card-meta svg {{ transition: transform var(--transition); }}
+        .card.collapsed .card-meta svg {{ transform: rotate(-90deg); }}
+        .card-body {{ padding: 0 16px 16px; }}
+        .card.collapsed .card-body {{ display: none; }}
+
+        /* Badge */
+        .badge {{
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 22px; height: 22px; padding: 0 8px;
+            font-size: 12px; font-weight: 600;
+            background: var(--bg-2); border-radius: 100px;
+        }}
+        .badge-accent {{ background: var(--accent-bg); color: var(--accent); }}
+        .badge-success {{ background: var(--success-bg); color: var(--success); }}
+        .badge-error {{ background: var(--error-bg); color: var(--error); }}
+
+        /* Charts */
+        .charts {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 16px; }}
+        @media (max-width: 800px) {{ .charts {{ grid-template-columns: 1fr; }} }}
+        .chart-card {{
+            background: var(--bg-0);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 16px;
+        }}
+        .chart-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }}
+        .chart-title {{ font-size: 13px; font-weight: 600; }}
+        .chart-container {{ height: 240px; }}
+
+        /* Mini Stats */
+        .mini-stats {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }}
+        @media (max-width: 640px) {{ .mini-stats {{ grid-template-columns: repeat(2, 1fr); }} }}
+        .mini-stat {{ background: var(--bg-2); border-radius: var(--radius-md); padding: 12px; text-align: center; }}
+        .mini-stat-value {{ font-size: 20px; font-weight: 700; }}
+        .mini-stat-label {{ font-size: 10px; color: var(--text-2); text-transform: uppercase; margin-top: 2px; }}
+
+        /* User Grid */
+        .user-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }}
+        .user-card {{
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 12px; border-radius: var(--radius-md);
+            background: var(--bg-2);
+            text-decoration: none; color: inherit;
+            transition: all var(--transition);
+        }}
+        .user-card:hover {{ background: var(--bg-3); }}
+        .user-card.hidden {{ display: none; }}
+        .avatar {{
+            width: 36px; height: 36px; border-radius: 50%;
+            background: var(--accent); flex-shrink: 0;
+            overflow: hidden; position: relative;
+        }}
+        .avatar img {{ width: 100%; height: 100%; object-fit: cover; }}
+        .avatar-fallback {{
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 600; font-size: 14px;
+        }}
+        .avatar img + .avatar-fallback {{ display: none; }}
+        .user-info {{ flex: 1; min-width: 0; }}
+        .user-name {{ font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }}
+        .user-handle {{ font-size: 12px; color: var(--text-2); }}
+        .user-bio {{ font-size: 11px; color: var(--text-3); margin-top: 4px; line-height: 1.4; }}
+        .user-card > span:last-child {{ color: var(--text-3); opacity: 0; transition: opacity var(--transition); }}
+        .user-card:hover > span:last-child {{ opacity: 1; }}
+
+        /* Tags */
+        .tag {{ font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; }}
+        .tag-muted {{ background: var(--error-bg); color: var(--error); }}
+
+        /* Search */
+        .search {{ position: relative; margin-bottom: 12px; }}
+        .search input {{
+            width: 100%; padding: 10px 12px 10px 36px;
+            font-family: var(--font); font-size: 13px;
+            background: var(--bg-2); border: 1px solid var(--border);
+            border-radius: var(--radius-md); color: var(--text-0);
+            outline: none; transition: border-color var(--transition);
+        }}
+        .search input:focus {{ border-color: var(--accent); }}
+        .search input::placeholder {{ color: var(--text-3); }}
+        .search > span {{ position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-3); }}
+
+        /* Hidden Stats */
+        .hidden-stats {{
+            display: flex; align-items: center; justify-content: center; gap: 16px;
+            padding: 16px; background: var(--bg-2); border-radius: var(--radius-md);
+        }}
+        .stat-mini {{ text-align: center; }}
+        .stat-mini-value {{ font-size: 24px; font-weight: 700; }}
+        .stat-mini-label {{ font-size: 11px; color: var(--text-2); }}
+        .stat-mini.highlight .stat-mini-value {{ color: var(--warning); }}
+        .stat-divider {{ font-size: 20px; color: var(--text-3); }}
+
+        .subsection {{ margin-top: 16px; }}
+        .subsection h4 {{ font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 8px; }}
+        .blocked-list {{ display: flex; flex-wrap: wrap; gap: 6px; }}
+        .blocked-item {{
+            padding: 4px 10px; font-size: 12px;
+            background: var(--bg-2); border-radius: 100px;
+            color: var(--text-1); text-decoration: none;
+            transition: background var(--transition);
+        }}
+        .blocked-item:hover {{ background: var(--bg-3); }}
+        .subsection.muted {{ padding: 12px; background: var(--warning-bg); border-radius: var(--radius-md); }}
+        .info-row {{ display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--warning); }}
+        .info-text {{ font-size: 12px; color: var(--text-2); margin-top: 4px; }}
+
+        /* Balance */
+        .balance {{ display: grid; grid-template-columns: 1fr auto 1fr; gap: 24px; align-items: center; }}
+        @media (max-width: 640px) {{ .balance {{ grid-template-columns: 1fr; gap: 16px; }} }}
+        .balance-col {{ background: var(--bg-2); border-radius: var(--radius-md); padding: 16px; }}
+        .balance-col h4 {{ font-size: 12px; font-weight: 600; text-align: center; margin-bottom: 12px; }}
+        .balance-col.given h4 {{ color: var(--success); }}
+        .balance-col.received h4 {{ color: var(--accent); }}
+        .balance-stats {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }}
+        .balance-value {{ font-size: 20px; font-weight: 700; }}
+        .balance-col.given .balance-value {{ color: var(--success); }}
+        .balance-col.received .balance-value {{ color: var(--accent); }}
+        .balance-label {{ font-size: 10px; color: var(--text-2); }}
+        .balance-total {{ margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); text-align: center; }}
+        .balance-indicator {{ text-align: center; }}
+        .ratio-circle {{
+            width: 72px; height: 72px; margin: 0 auto;
+            border-radius: 50%; background: var(--bg-2);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }}
+        .ratio-value {{ font-size: 20px; font-weight: 700; color: var(--accent); }}
+        .ratio-label {{ font-size: 10px; color: var(--text-2); }}
+        .balance-type {{ font-size: 11px; color: var(--text-2); margin-top: 6px; }}
+
+        /* Posts */
+        .post {{
+            padding: 12px; margin-bottom: 8px;
+            background: var(--bg-2); border-radius: var(--radius-md);
+            cursor: pointer; transition: background var(--transition);
+        }}
+        .post:hover {{ background: var(--bg-3); }}
+        .post-header {{ display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }}
+        .post-avatar {{ width: 32px; height: 32px; border-radius: 50%; background: var(--accent); overflow: hidden; }}
+        .post-avatar img {{ width: 100%; height: 100%; object-fit: cover; }}
+        .post-author {{ font-size: 13px; font-weight: 600; flex: 1; }}
+        .post-date {{ font-size: 11px; color: var(--text-3); }}
+        .post-text {{ font-size: 13px; line-height: 1.5; margin-bottom: 10px; white-space: pre-wrap; word-break: break-word; }}
+        .post-stats {{ display: flex; gap: 16px; padding-top: 10px; border-top: 1px solid var(--border); }}
+        .post-stat {{ display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-2); }}
+        .post-stat svg {{ width: 14px; height: 14px; }}
+        .post-score {{ margin-left: auto; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 4px; }}
+
+        /* Empty */
+        .empty {{ text-align: center; padding: 32px; color: var(--text-3); font-size: 13px; }}
+
+        /* Toast */
+        .toast-container {{ position: fixed; bottom: 24px; right: 24px; z-index: 1000; }}
+        .toast {{
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 16px; margin-top: 8px;
+            background: var(--bg-0); border: 1px solid var(--border);
+            border-radius: var(--radius-md); box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            animation: toast-in 0.2s ease;
+        }}
+        @keyframes toast-in {{ from {{ opacity: 0; transform: translateY(8px); }} }}
+        .toast-icon {{ flex-shrink: 0; }}
+        .toast-icon.success {{ color: var(--success); }}
+        .toast-icon.error {{ color: var(--error); }}
+        .toast-title {{ font-size: 13px; font-weight: 600; }}
+        .toast-close {{ cursor: pointer; color: var(--text-3); padding: 4px; }}
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {{ width: 8px; height: 8px; }}
+        ::-webkit-scrollbar-track {{ background: transparent; }}
+        ::-webkit-scrollbar-thumb {{ background: var(--border); border-radius: 4px; }}
+        ::-webkit-scrollbar-thumb:hover {{ background: var(--text-3); }}
     </style>
-        <!-- Chart.js for Historical Analytics -->
-        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-        <script>
-            console.log("TEST: JavaScript is running!");
-            console.log("TEST: Chart available:", typeof Chart !== "undefined");
-        </script>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div class="header-content">
-                <div class="header-left">
-                    <div class="avatar-large" style="font-size: 32px;">📈</div>
-                        <div class="header-text">
-                            <h1>Bluesky Analytics</h1>
-                        <p>@{esc_text(bluesky_handle)}</p>
-                        </div>
-                    </div>
-                <div style="display: flex; align-items: center; gap: 16px;">
-                    <div style="font-size: 13px; color: #49454F;">
-                        Last updated: <span id="last-updated">{esc_text(last_updated)}</span>
-                    </div>
-                    <button id="refresh-btn" onclick="refreshData()" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: #1976D2; color: white; border: none; border-radius: 24px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                        <span class="material-icons" style="font-size: 18px;">sync</span>
-                        Refresh Data
-                    </button>
-                    <div class="auth-badge" style="background: {'var(--md-success-container)' if auth_enabled else '#FFF3E0'}; color: {'var(--md-success)' if auth_enabled else '#F57C00'};">
-                        <span>{'Authenticated ✓' if auth_enabled else 'Public API Only'}</span>
-                    </div>
+    <div class="app">
+        <header class="header">
+            <div class="header-left">
+                <div class="header-avatar" id="header-avatar">{esc((bluesky_handle[0] if bluesky_handle else "?").upper())}</div>
+                <div>
+                    <div class="header-title">Bluesky Analytics</div>
+                    <div class="header-handle">@{esc(bluesky_handle)}</div>
                 </div>
             </div>
-        </div>
-
-        <div class="stats-grid">
-            <div class="stat-card primary">
-                <div class="stat-header"><span class="stat-label">Followers</span><span class="stat-icon">👥</span></div>
-                <div class="stat-value">{stats.get('follower_count', 0)}{follower_change_badge}</div>
-                <div class="stat-change">{"Net change in last 30 days" if follower_change != 0 else "Current count"}</div>
+            <div class="header-right">
+                <span class="header-meta">Updated: <span id="last-updated">{esc(last_updated)}</span></span>
+                <button class="btn" id="refresh-btn" onclick="refreshData()">{icon("refresh", 14)}<span>Refresh</span></button>
+                <button class="btn btn-icon" onclick="toggleTheme()" title="Toggle theme"><span class="theme-icon">{icon("sun", 16)}</span></button>
             </div>
-            <div class="stat-card secondary">
-                <div class="stat-header"><span class="stat-label">Following</span><span class="stat-icon">➕</span></div>
+        </header>
+
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-header"><span class="stat-label">Followers</span><span class="stat-icon">{icon("users", 16)}</span></div>
+                <div class="stat-value">{stats.get('follower_count', 0)}{f'<span class="stat-change up">+{follower_change}</span>' if follower_change > 0 else f'<span class="stat-change down">{follower_change}</span>' if follower_change < 0 else ''}</div>
+                <div class="stat-footer">Total followers</div>
+            </div>
+            <div class="stat">
+                <div class="stat-header"><span class="stat-label">Following</span><span class="stat-icon">{icon("user-plus", 16)}</span></div>
                 <div class="stat-value">{stats.get('following_count', 0)}</div>
-                <div class="stat-change">People you follow</div>
+                <div class="stat-footer">Accounts you follow</div>
             </div>
-            <div class="stat-card success">
-                <div class="stat-header"><span class="stat-label">Mutual</span><span class="stat-icon">🤝</span></div>
+            <div class="stat">
+                <div class="stat-header"><span class="stat-label">Mutuals</span><span class="stat-icon">{icon("handshake", 16)}</span></div>
                 <div class="stat-value">{len(mutual_follows)}</div>
-                <div class="stat-change">Follow each other</div>
+                <div class="stat-footer">Follow each other</div>
             </div>
-            <div class="stat-card tertiary">
-                <div class="stat-header"><span class="stat-label">Not Following Back</span><span class="stat-icon">🚫</span></div>
+            <div class="stat">
+                <div class="stat-header"><span class="stat-label">Non-Mutuals</span><span class="stat-icon">{icon("ghost", 16)}</span></div>
                 <div class="stat-value">{stats.get('non_mutual_following', 0)}</div>
-                <div class="stat-change">You follow, they don't</div>
+                <div class="stat-footer">Don't follow back</div>
             </div>
-            <div class="stat-card secondary">
-                <div class="stat-header"><span class="stat-label">They Follow, You Don't</span><span class="stat-icon">👤</span></div>
+            <div class="stat">
+                <div class="stat-header"><span class="stat-label">Fans</span><span class="stat-icon">{icon("star", 16)}</span></div>
                 <div class="stat-value">{len(followers_only)}</div>
-                <div class="stat-change">Follow you only</div>
+                <div class="stat-footer">You don't follow back</div>
             </div>
         </div>
 
-        <!-- Global Time Filter -->
-        <div class="global-time-filter" style="display: flex; justify-content: center; align-items: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; padding: 16px; background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-            <span style="font-size: 14px; color: #666; font-weight: 500;">Time Range:</span>
-            <button class="time-range-btn" data-days="1" onclick="changeGlobalTimeRange(1)">1D</button>
-            <button class="time-range-btn" data-days="7" onclick="changeGlobalTimeRange(7)">7D</button>
-            <button class="time-range-btn active" data-days="30" onclick="changeGlobalTimeRange(30)">30D</button>
-            <button class="time-range-btn" data-days="90" onclick="changeGlobalTimeRange(90)">90D</button>
-            <button class="time-range-btn" data-days="365" onclick="changeGlobalTimeRange(365)">1Y</button>
-            <button class="time-range-btn" data-days="999999" onclick="changeGlobalTimeRange(999999)">All</button>
+        <div class="time-filter">
+            <span class="time-filter-label">Period:</span>
+            <button class="time-btn" data-days="1" onclick="changeTimeRange(1)">24h</button>
+            <button class="time-btn" data-days="7" onclick="changeTimeRange(7)">7d</button>
+            <button class="time-btn active" data-days="30" onclick="changeTimeRange(30)">30d</button>
+            <button class="time-btn" data-days="90" onclick="changeTimeRange(90)">90d</button>
+            <button class="time-btn" data-days="365" onclick="changeTimeRange(365)">1y</button>
+            <button class="time-btn" data-days="999999" onclick="changeTimeRange(999999)">All</button>
         </div>
 
-        <!-- ENGAGEMENT BALANCE SECTION (Given vs Received) -->
-        <div class="section-card" style="margin-bottom: 16px;">
-            <div class="section-header" onclick="toggleSection(this)">
-                <div class="section-title">
-                    <div class="section-icon">⚖️</div>
-                    <div class="section-text">
-                        <h3>Engagement Balance</h3>
-                        <p id="engagement-balance-subtitle">Comparing what you give vs what you receive</p>
+        <section class="card" id="balance-section">
+            <div class="card-header" onclick="toggleSection('balance-section')">
+                <div class="card-title">{icon("scale", 16)}<span>Engagement Balance</span></div>
+                <div class="card-meta">{icon("chevron-down", 16)}</div>
+            </div>
+            <div class="card-body">
+                <div class="balance">
+                    <div class="balance-col given">
+                        <h4>Given</h4>
+                        <div class="balance-stats">
+                            <div><div class="balance-value" id="given-likes">-</div><div class="balance-label">Likes</div></div>
+                            <div><div class="balance-value" id="given-reposts">-</div><div class="balance-label">Reposts</div></div>
+                            <div><div class="balance-value" id="given-replies">-</div><div class="balance-label">Replies</div></div>
+                        </div>
+                        <div class="balance-total"><span id="given-total" style="font-size:16px;font-weight:700;color:var(--success);">-</span></div>
+                    </div>
+                    <div class="balance-indicator">
+                        <div class="ratio-circle"><span class="ratio-value" id="balance-ratio">-</span><span class="ratio-label">ratio</span></div>
+                        <div class="balance-type" id="balance-type">Loading...</div>
+                    </div>
+                    <div class="balance-col received">
+                        <h4>Received</h4>
+                        <div class="balance-stats">
+                            <div><div class="balance-value" id="received-likes">-</div><div class="balance-label">Likes</div></div>
+                            <div><div class="balance-value" id="received-reposts">-</div><div class="balance-label">Reposts</div></div>
+                            <div><div class="balance-value" id="received-replies">-</div><div class="balance-label">Replies</div></div>
+                        </div>
+                        <div class="balance-total"><span id="received-total" style="font-size:16px;font-weight:700;color:var(--accent);">-</span></div>
                     </div>
                 </div>
-                <svg class="section-chevron expanded" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                </svg>
             </div>
-            <div class="section-content expanded">
-                <div class="section-body" id="engagement-balance-container">
-                    <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 24px; align-items: center;">
-                        <!-- Given Column -->
-                        <div style="background: #E8F5E9; border-radius: 12px; padding: 20px;">
-                            <h4 style="font-size: 16px; font-weight: 600; color: #388E3C; margin-bottom: 16px; text-align: center;">Given (Outgoing)</h4>
-                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; text-align: center;">
-                                <div>
-                                    <div id="given-likes" style="font-size: 28px; font-weight: 700; color: #388E3C;">-</div>
-                                    <div style="font-size: 12px; color: #666;">Likes</div>
-                                </div>
-                                <div>
-                                    <div id="given-reposts" style="font-size: 28px; font-weight: 700; color: #388E3C;">-</div>
-                                    <div style="font-size: 12px; color: #666;">Reposts</div>
-                                </div>
-                                <div>
-                                    <div id="given-replies" style="font-size: 28px; font-weight: 700; color: #388E3C;">-</div>
-                                    <div style="font-size: 12px; color: #666;">Replies</div>
-                                </div>
-                            </div>
-                            <div style="margin-top: 16px; text-align: center; border-top: 1px solid #A5D6A7; padding-top: 12px;">
-                                <span style="font-size: 14px; color: #666;">Total:</span>
-                                <span id="given-total" style="font-size: 20px; font-weight: 700; color: #2E7D32; margin-left: 8px;">-</span>
-                            </div>
-                        </div>
+        </section>
 
-                        <!-- Balance Indicator -->
-                        <div style="text-align: center;">
-                            <div id="balance-indicator" style="width: 80px; height: 80px; border-radius: 50%; background: #E3F2FD; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto;">
-                                <div id="balance-ratio" style="font-size: 24px; font-weight: 700; color: #1976D2;">-</div>
-                                <div style="font-size: 11px; color: #666;">ratio</div>
-                            </div>
-                            <div id="balance-type" style="font-size: 13px; font-weight: 500; color: #666; margin-top: 8px;">Loading...</div>
-                        </div>
-
-                        <!-- Received Column -->
-                        <div style="background: #E3F2FD; border-radius: 12px; padding: 20px;">
-                            <h4 style="font-size: 16px; font-weight: 600; color: #1976D2; margin-bottom: 16px; text-align: center;">Received (Incoming)</h4>
-                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; text-align: center;">
-                                <div>
-                                    <div id="received-likes" style="font-size: 28px; font-weight: 700; color: #1976D2;">-</div>
-                                    <div style="font-size: 12px; color: #666;">Likes</div>
-                                </div>
-                                <div>
-                                    <div id="received-reposts" style="font-size: 28px; font-weight: 700; color: #1976D2;">-</div>
-                                    <div style="font-size: 12px; color: #666;">Reposts</div>
-                                </div>
-                                <div>
-                                    <div id="received-replies" style="font-size: 28px; font-weight: 700; color: #1976D2;">-</div>
-                                    <div style="font-size: 12px; color: #666;">Replies</div>
-                                </div>
-                            </div>
-                            <div style="margin-top: 16px; text-align: center; border-top: 1px solid #90CAF9; padding-top: 12px;">
-                                <span style="font-size: 14px; color: #666;">Total:</span>
-                                <span id="received-total" style="font-size: 20px; font-weight: 700; color: #1565C0; margin-left: 8px;">-</span>
-                            </div>
-                        </div>
-                    </div>
-                    <p style="font-size: 13px; color: #666; text-align: center; margin-top: 16px;">
-                        <strong>Ratio &lt; 1</strong> = you receive more than you give (receiver) |
-                        <strong>Ratio &gt; 1</strong> = you give more than you receive (giver)
-                    </p>
+        <section class="card" id="analytics-section">
+            <div class="card-header" onclick="toggleSection('analytics-section')">
+                <div class="card-title">{icon("activity", 16)}<span>Analytics</span></div>
+                <div class="card-meta"><span class="badge" id="analytics-badge">30d</span>{icon("chevron-down", 16)}</div>
+            </div>
+            <div class="card-body">
+                <div class="mini-stats">
+                    <div class="mini-stat"><div class="mini-stat-value" id="stat-days">-</div><div class="mini-stat-label">Days</div></div>
+                    <div class="mini-stat"><div class="mini-stat-value" id="stat-change">-</div><div class="mini-stat-label">Net followers</div></div>
+                    <div class="mini-stat"><div class="mini-stat-value" id="stat-posts">-</div><div class="mini-stat-label">Posts</div></div>
+                    <div class="mini-stat"><div class="mini-stat-value" id="stat-engagement">-</div><div class="mini-stat-label">Avg engagement</div></div>
+                </div>
+                <div class="charts">
+                    <div class="chart-card"><div class="chart-header"><span class="chart-title">Network Growth</span></div><div class="chart-container"><canvas id="growthChart"></canvas></div></div>
+                    <div class="chart-card"><div class="chart-header"><span class="chart-title">Engagement</span><button class="btn btn-text" id="engToggle" onclick="toggleEngView()" style="padding:4px 8px;font-size:11px;">Daily</button></div><div class="chart-container"><canvas id="engChart"></canvas></div></div>
+                    <div class="chart-card"><div class="chart-header"><span class="chart-title">Posts</span></div><div class="chart-container"><canvas id="postsChart"></canvas></div></div>
+                    <div class="chart-card"><div class="chart-header"><span class="chart-title">Breakdown</span></div><div class="chart-container"><canvas id="breakdownChart"></canvas></div></div>
                 </div>
             </div>
-        </div>
-"""
+        </section>
 
-    page_html += """
-<!-- HISTORICAL ANALYTICS SECTION -->
-<!-- ================================================================ -->
-
-<div class="section-card" style="margin-top: 16px;">
-    <div class="section-header" onclick="toggleSection(this)">
-        <div class="section-title">
-            <div class="section-icon">📈</div>
-            <div class="section-text">
-                <h3>Historical Analytics</h3>
-                <p id="analytics-subtitle">Tracking trends over time</p>
+        <section class="card" id="posts-section">
+            <div class="card-header" onclick="toggleSection('posts-section')">
+                <div class="card-title">{icon("zap", 16)}<span>Top Posts</span></div>
+                <div class="card-meta"><span class="badge badge-accent" id="posts-count">-</span>{icon("chevron-down", 16)}</div>
             </div>
-        </div>
-        <svg class="section-chevron" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-        </svg>
+            <div class="card-body" id="posts-container"><div class="empty">Loading...</div></div>
+        </section>
+
+        <section class="card collapsed" id="unfollowers-section">
+            <div class="card-header" onclick="toggleSection('unfollowers-section')">
+                <div class="card-title">{icon("user-minus", 16)}<span>Unfollowers</span></div>
+                <div class="card-meta"><span class="badge badge-error" id="unfollowers-count">-</span>{icon("chevron-down", 16)}</div>
+            </div>
+            <div class="card-body" id="unfollowers-container"><div class="empty">Loading...</div></div>
+        </section>
+
+        <section class="card collapsed" id="interactors-section">
+            <div class="card-header" onclick="toggleSection('interactors-section')">
+                <div class="card-title">{icon("heart", 16)}<span>Top Interactors</span></div>
+                <div class="card-meta"><span class="badge badge-success" id="interactors-count">-</span>{icon("chevron-down", 16)}</div>
+            </div>
+            <div class="card-body" id="interactors-container"><div class="empty">Loading...</div></div>
+        </section>
+
+        {hidden_section}
+
+        <section class="card collapsed" id="mutuals-section">
+            <div class="card-header" onclick="toggleSection('mutuals-section')">
+                <div class="card-title">{icon("handshake", 16)}<span>Mutual Follows</span></div>
+                <div class="card-meta"><span class="badge badge-success">{len(mutual_follows)}</span>{icon("chevron-down", 16)}</div>
+            </div>
+            <div class="card-body">
+                <div class="search"><span>{icon("search", 14)}</span><input type="text" placeholder="Search..." onkeyup="filterUsers('mutual-grid',this.value)"></div>
+                {mutual_html}
+            </div>
+        </section>
+
+        <section class="card collapsed" id="nonmutuals-section">
+            <div class="card-header" onclick="toggleSection('nonmutuals-section')">
+                <div class="card-title">{icon("ghost", 16)}<span>Non-Mutuals</span></div>
+                <div class="card-meta"><span class="badge">{len(non_mutual)}</span>{icon("chevron-down", 16)}</div>
+            </div>
+            <div class="card-body">
+                <div class="search"><span>{icon("search", 14)}</span><input type="text" placeholder="Search..." onkeyup="filterUsers('non-mutual-grid',this.value)"></div>
+                {non_mutual_html}
+            </div>
+        </section>
+
+        <section class="card collapsed" id="fans-section">
+            <div class="card-header" onclick="toggleSection('fans-section')">
+                <div class="card-title">{icon("star", 16)}<span>Fans</span></div>
+                <div class="card-meta"><span class="badge">{len(followers_only)}</span>{icon("chevron-down", 16)}</div>
+            </div>
+            <div class="card-body">
+                <div class="search"><span>{icon("search", 14)}</span><input type="text" placeholder="Search..." onkeyup="filterUsers('followers-only-grid',this.value)"></div>
+                {followers_only_html}
+            </div>
+        </section>
     </div>
 
-    <div class="section-content expanded">
-        <div class="section-body">
-            <!-- Stats Summary Cards -->
-            <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 12px; margin-bottom: 24px;">
-                <div style="background: #E3F2FD; border-radius: 12px; padding: 16px; text-align: center;">
-                    <div style="font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 4px;">Days Tracked</div>
-                    <div id="stat-days-tracked" style="font-size: 28px; font-weight: 700; color: #1976D2;">-</div>
-                </div>
-                <div style="background: #E8F5E9; border-radius: 12px; padding: 16px; text-align: center;">
-                    <div style="font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 4px;">Follower Change</div>
-                    <div id="stat-follower-change" style="font-size: 28px; font-weight: 700; color: #388E3C;">-</div>
-                </div>
-                <div style="background: #FFF3E0; border-radius: 12px; padding: 16px; text-align: center;">
-                    <div style="font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 4px;">Total Posts</div>
-                    <div id="stat-total-posts" style="font-size: 28px; font-weight: 700; color: #F57C00;">-</div>
-                </div>
-                <div style="background: #F3E5F5; border-radius: 12px; padding: 16px; text-align: center;">
-                    <div style="font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 4px;">Avg Engagement</div>
-                    <div id="stat-avg-engagement" style="font-size: 28px; font-weight: 700; color: #7B1FA2;">-</div>
-                </div>
-                <div style="background: #FFEBEE; border-radius: 12px; padding: 16px; text-align: center;">
-                    <div style="font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 4px;">Likes</div>
-                    <div id="stat-likes-change" style="font-size: 28px; font-weight: 700; color: #D32F2F;">-</div>
-                </div>
-                <div style="background: #E0F7FA; border-radius: 12px; padding: 16px; text-align: center;">
-                    <div style="font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 4px;">Reposts/Quotes</div>
-                    <div id="stat-reposts-quotes-change" style="font-size: 28px; font-weight: 700; color: #00838F;">-</div>
-                </div>
-                <div style="background: #FFF8E1; border-radius: 12px; padding: 16px; text-align: center;">
-                    <div style="font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 4px;">Replies</div>
-                    <div id="stat-replies-change" style="font-size: 28px; font-weight: 700; color: #FF8F00;">-</div>
-                </div>
-                <div style="background: #E8EAF6; border-radius: 12px; padding: 16px; text-align: center;">
-                    <div style="font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 4px;">Saves</div>
-                    <div id="stat-saves-change" style="font-size: 28px; font-weight: 700; color: #3949AB;">-</div>
-                </div>
-            </div>
-
-            <!-- Graphs Grid -->
-            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;">
-
-                <!-- Row 1: Network Growth (left), Engagement Timeline (right) -->
-                <!-- Follower Growth Chart -->
-                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 350px;">
-                    <h4 style="margin: 0 0 16px 0; color: #1C1B1F; font-size: 16px; font-weight: 600;">Network Growth</h4>
-                    <div style="position: relative; height: 300px; width: 100%;">
-                        <canvas id="followerGrowthChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- Engagement Timeline Chart -->
-                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 350px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                        <h4 style="margin: 0; color: #1C1B1F; font-size: 16px; font-weight: 600;">Engagement Timeline</h4>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <span style="font-size: 12px; color: #666;">View:</span>
-                            <button id="engagementViewToggle" onclick="toggleEngagementView()" style="
-                                padding: 6px 12px;
-                                background: #1976D2;
-                                color: white;
-                                border: none;
-                                border-radius: 6px;
-                                cursor: pointer;
-                                font-size: 12px;
-                                font-weight: 500;
-                                transition: background 0.2s;
-                            ">Daily</button>
-                        </div>
-                    </div>
-                    <div style="position: relative; height: 280px; width: 100%;">
-                        <canvas id="engagementTimelineChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- Row 2: Engagement Distribution (left), Posting Activity (right) -->
-                <!-- Engagement Breakdown Chart -->
-                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 350px;">
-                    <h4 style="margin: 0 0 16px 0; color: #1C1B1F; font-size: 16px; font-weight: 600;">Engagement Distribution</h4>
-                    <div style="position: relative; height: 300px; width: 100%;">
-                        <canvas id="engagementBreakdownChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- Posting Frequency Chart (same x-axis as Engagement Timeline) -->
-                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 350px;">
-                    <h4 style="margin: 0 0 16px 0; color: #1C1B1F; font-size: 16px; font-weight: 600;">Posting Activity</h4>
-                    <div style="position: relative; height: 300px; width: 100%;">
-                        <canvas id="postingFrequencyChart"></canvas>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-    </div>
-</div>
-
-<style>
-    .time-range-btn {
-        padding: 8px 16px;
-        border: 1px solid #CAC4D0;
-        border-radius: 20px;
-        background: white;
-        color: #1C1B1F;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .time-range-btn:hover {
-        background: #F5F5F5;
-    }
-
-    .time-range-btn.active {
-        background: #1976D2;
-        color: white;
-        border-color: #1976D2;
-    }
-</style>
-
-
-    """
-
-    # Top Posts Section (AJAX-loaded)
-    page_html += f"""
-        <div class="section-card" id="top-posts-section">
-            <div class="section-header" onclick="toggleSection(this)">
-                <div class="section-title">
-                    <div class="section-icon">📊</div>
-                    <div class="section-text">
-                        <h3>Top Posts by Engagement</h3>
-                        <p id="top-posts-subtitle">Your most popular posts (original content only)</p>
-                    </div>
-                </div>
-                <span class="section-badge" id="top-posts-count">-</span>
-                <svg class="section-chevron" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                </svg>
-            </div>
-            <div class="section-content">
-                <div class="section-body" id="top-posts-container">
-                    <div style="text-align: center; padding: 40px; color: #666;">
-                        <span class="material-icons" style="font-size: 48px; animation: spin 1s linear infinite;">sync</span>
-                        <p>Loading top posts...</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-"""
-
-    # Unfollowers Section (AJAX-loaded)
-    page_html += f"""
-        <div class="section-card" id="unfollowers-section">
-            <div class="section-header" onclick="toggleSection(this)">
-                <div class="section-title">
-                    <div class="section-icon">💔</div>
-                    <div class="section-text">
-                        <h3>Recent Unfollowers</h3>
-                        <p id="unfollowers-subtitle">People who unfollowed you</p>
-                    </div>
-                </div>
-                <span class="section-badge" id="unfollowers-count">-</span>
-                <svg class="section-chevron" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                </svg>
-            </div>
-            <div class="section-content">
-                <div class="section-body" id="unfollowers-container">
-                    <div style="text-align: center; padding: 40px; color: #666;">
-                        <span class="material-icons" style="font-size: 48px; animation: spin 1s linear infinite;">sync</span>
-                        <p>Loading unfollowers...</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-"""
-
-    # Hidden Accounts / Blocked You / Deactivated Section
-    hidden_current = hidden_analytics.get("current", {})
-    if (
-        hidden_current.get("suspected_blocks_or_suspensions", 0) > 0
-        or hidden_current.get("blocked_count", 0) > 0
-        or hidden_current.get("muted_count", 0) > 0
-    ):
-        page_html += f"""
-        <div class="section-card">
-            <div class="section-header" onclick="toggleSection(this)">
-                <div class="section-title">
-                    <div class="section-icon">🚫</div>
-                    <div class="section-text">
-                        <h3>Hidden Accounts Analysis</h3>
-                        <p>Accounts that blocked you, were deactivated, or you blocked/muted</p>
-                    </div>
-                </div>
-                <span class="section-badge">{hidden_current.get('hidden_followers', 0)}</span>
-                <svg class="section-chevron" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                </svg>
-            </div>
-            <div class="section-content">
-                <div class="section-body">
-                    <div style="background: var(--md-surface-variant); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
-                        <h4 style="font-size: 16px; font-weight: 600; margin-bottom: 8px;"><span style="font-size: 18px; vertical-align: middle;">📊</span> Account Breakdown</h4>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
-                            <div style="background: white; padding: 12px; border-radius: 8px;">
-                                <div style="font-size: 24px; font-weight: 700; color: var(--md-primary);">{hidden_current.get('profile_followers', 0)}</div>
-                                <div style="font-size: 13px; color: var(--md-on-surface-variant);">Profile Count</div>
-                            </div>
-                            <div style="background: white; padding: 12px; border-radius: 8px;">
-                                <div style="font-size: 24px; font-weight: 700; color: var(--md-success);">{hidden_current.get('api_followers', 0)}</div>
-                                <div style="font-size: 13px; color: var(--md-on-surface-variant);">API Returns</div>
-                            </div>
-                            <div style="background: white; padding: 12px; border-radius: 8px;">
-                                <div style="font-size: 24px; font-weight: 700; color: var(--md-error);">{hidden_current.get('hidden_followers', 0)}</div>
-                                <div style="font-size: 13px; color: var(--md-on-surface-variant);">Hidden</div>
-                            </div>
-                        </div>
-                    </div>
-"""
-        # Show accounts you blocked
-        blocked_accounts = hidden_categories.get("blocked", {}).get("accounts", [])
-        if blocked_accounts:
-            page_html += f"""
-                    <div style="background: var(--md-error-container); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
-                        <h4 style="font-size: 16px; font-weight: 600; margin-bottom: 12px; color: var(--md-error);">🚫 You Blocked ({len(blocked_accounts)})</h4>
-"""
-            for user in blocked_accounts[:10]:
-                display_name = user.get("display_name", user.get("handle"))
-                handle = user.get("handle", "")
-                bio = user.get("bio", "")[:100]
-                safe_profile_url = f"https://bsky.app/profile/{quote(str(handle or ''), safe='')}"
-                page_html += f"""
-                        <div class="card" style="margin-bottom: 8px; cursor: pointer;" onclick="window.open('{esc_attr(safe_profile_url)}', '_blank')">
-                            <strong>{esc_text(display_name)}</strong> <span style="color: var(--md-on-surface-variant);">@{esc_text(handle)}</span>
-                            {f'<p style="font-size: 13px; color: var(--md-on-surface-variant); margin-top: 4px;">{esc_text(bio)}</p>' if bio else ''}
-                        </div>
-"""
-            page_html += """
-                    </div>
-"""
-
-        # Show suspected blocks/deactivations
-        suspected = hidden_current.get("suspected_blocks_or_suspensions", 0)
-        page_html += f"""
-                    <div style="background: var(--md-secondary-container); padding: 20px; border-radius: 12px;">
-                        <h4 style="font-size: 18px; font-weight: 700; margin-bottom: 12px;">❓ Blocked You or Deactivated: {suspected} accounts</h4>
-                        <p style="margin-bottom: 12px; line-height: 1.6;">
-                            These {suspected} accounts are hidden from the API and could be:
-                        </p>
-                        <ul style="padding-left: 20px; margin-bottom: 12px;">
-                            <li><strong>Blocked you</strong> - They don't want you to see their profile</li>
-                            <li><strong>Deactivated</strong> - Deleted their account</li>
-                            <li><strong>Suspended</strong> - Violated Bluesky's terms</li>
-                        </ul>
-                        <div style="background: rgba(255,255,255,0.3); padding: 12px; border-radius: 8px; margin-top: 12px;">
-                            <p style="font-size: 13px; font-weight: 500;">
-                                🔒 <strong>Cannot identify WHO:</strong> Bluesky filters these accounts for privacy. 
-                                However, starting tomorrow with historical tracking, we'll be able to identify them when they disappear from our follower list!
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-"""
-
-    # Top Interactors Section (AJAX-loaded)
-    page_html += f"""
-        <div class="section-card" id="top-interactors-section">
-            <div class="section-header" onclick="toggleSection(this)">
-                <div class="section-title">
-                    <div class="section-icon">👥</div>
-                    <div class="section-text">
-                        <h3>Top Interactors</h3>
-                        <p id="top-interactors-subtitle">People who engage most with your content</p>
-                    </div>
-                </div>
-                <span class="section-badge" id="top-interactors-count">-</span>
-                <svg class="section-chevron" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                </svg>
-            </div>
-            <div class="section-content">
-                <div class="section-body" id="top-interactors-container">
-                    <div style="text-align: center; padding: 40px; color: #666;">
-                        <span class="material-icons" style="font-size: 48px; animation: spin 1s linear infinite;">sync</span>
-                        <p>Loading top interactors...</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-"""
-
-    # Mutual Follows Section
-    mutual_body = ""
-    if mutual_follows:
-        cards = "".join(
-            [user_card(u, "", True, i) for i, u in enumerate(mutual_follows)]
-        )
-        mutual_body = f'<div class="user-grid" id="mutual-grid">{cards}</div>'
-        if len(mutual_follows) > 50:
-            mutual_body += f'<div class="show-more-container"><button class="show-more-btn" onclick="showMoreCards(\'mutual-grid\')">Show All {len(mutual_follows)} Mutual Follows</button></div>'
-    else:
-        mutual_body = '<div class="empty-state"><div class="empty-state-icon">🤝</div><h4>No mutual follows yet</h4></div>'
-
-    page_html += f"""
-        <div class="section-card">
-            <div class="section-header" onclick="toggleSection(this)">
-                <div class="section-title">
-                    <div class="section-icon">🤝</div>
-                    <div class="section-text">
-                        <h3>Mutual Follows</h3>
-                        <p>Accounts where you follow each other</p>
-                    </div>
-                </div>
-                <span class="section-badge">{len(mutual_follows)}</span>
-                <svg class="section-chevron" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                </svg>
-            </div>
-            <div class="section-content">
-                <div class="section-body">{mutual_body}</div>
-            </div>
-        </div>
-"""
-
-    # Non-Mutual Section
-    non_mutual_body = ""
-    if non_mutual:
-        cards = "".join([user_card(u, "", True, i) for i, u in enumerate(non_mutual)])
-        non_mutual_body = f'<div class="user-grid" id="non-mutual-grid">{cards}</div>'
-        if len(non_mutual) > 50:
-            non_mutual_body += f'<div class="show-more-container"><button class="show-more-btn" onclick="showMoreCards(\'non-mutual-grid\')">Show All {len(non_mutual)} Accounts</button></div>'
-    else:
-        non_mutual_body = '<div class="empty-state"><div class="empty-state-icon">✨</div><h4>Everyone follows back</h4></div>'
-
-    page_html += f"""
-        <div class="section-card">
-            <div class="section-header" onclick="toggleSection(this)">
-                <div class="section-title">
-                    <div class="section-icon">👻</div>
-                    <div class="section-text">
-                        <h3>Not Following Back</h3>
-                        <p>People you follow who don't follow you back</p>
-                    </div>
-                </div>
-                <span class="section-badge">{len(non_mutual)}</span>
-                <svg class="section-chevron" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                </svg>
-            </div>
-            <div class="section-content">
-                <div class="section-body">{non_mutual_body}</div>
-            </div>
-        </div>
-"""
-
-    # Followers Only Section
-    followers_only_body = ""
-    if followers_only:
-        cards = "".join(
-            [user_card(u, "", True, i) for i, u in enumerate(followers_only)]
-        )
-        followers_only_body = (
-            f'<div class="user-grid" id="followers-only-grid">{cards}</div>'
-        )
-        if len(followers_only) > 50:
-            followers_only_body += f'<div class="show-more-container"><button class="show-more-btn" onclick="showMoreCards(\'followers-only-grid\')">Show All {len(followers_only)} Followers</button></div>'
-    else:
-        followers_only_body = '<div class="empty-state"><div class="empty-state-icon">🤷</div><h4>No followers only</h4></div>'
-
-    page_html += f"""
-        <div class="section-card">
-            <div class="section-header" onclick="toggleSection(this)">
-                <div class="section-title">
-                    <div class="section-icon">🌟</div>
-                    <div class="section-text">
-                        <h3>Followers Only</h3>
-                        <p>People who follow you but you don't follow back</p>
-                    </div>
-                </div>
-                <span class="section-badge">{len(followers_only)}</span>
-                <svg class="section-chevron" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                </svg>
-            </div>
-            <div class="section-content">
-                <div class="section-body">{followers_only_body}</div>
-            </div>
-        </div>
-"""
-
-    # Footer with JavaScript
-    page_html += """
-    </div>
-    <script>
-        function showMoreCards(gridId) {
-            const grid = document.getElementById(gridId);
-            const hiddenCards = grid.querySelectorAll('.user-card.hidden-card');
-            const btn = grid.nextElementSibling.querySelector('.show-more-btn');
-
-            hiddenCards.forEach((card, index) => {
-                setTimeout(() => {
-                    card.classList.remove('hidden-card');
-                    card.style.animation = 'fadeIn 0.3s ease-out';
-                }, index * 20);
-            });
-
-            btn.style.display = 'none';
-        }
-    </script>
+    <div class="toast-container" id="toasts"></div>
 
     <script>
-        function toggleSection(element) {
-            const content = element.nextElementSibling;
-            const chevron = element.querySelector('.section-chevron');
-            content.classList.toggle('expanded');
-            chevron.classList.toggle('expanded');
-        }
-        
-        async function refreshData() {
+        const handle = {bluesky_handle_js};
+        let timeRange = 30, charts = {{}}, engData = {{daily:null,cumulative:null,view:'cumulative'}}, avatarUrl = null;
+
+        // Theme
+        const getTheme = () => localStorage.getItem('theme') || (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light');
+        const setTheme = t => {{ document.documentElement.dataset.theme = t; localStorage.setItem('theme', t); updateThemeIcon(); updateCharts(); }};
+        const toggleTheme = () => setTheme(getTheme() === 'dark' ? 'light' : 'dark');
+        const updateThemeIcon = () => {{ document.querySelector('.theme-icon').innerHTML = getTheme() === 'dark' ? '{icon("sun", 16)}' : '{icon("moon", 16)}'; }};
+        setTheme(getTheme());
+
+        // Utils
+        const esc = s => String(s??'').replace(/[&<>"']/g, c => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}})[c]);
+        const fmt = n => n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : n;
+        const timeLabel = d => d===1?'24h':d===7?'7d':d===30?'30d':d===90?'90d':d===365?'1y':'All';
+        const fmtDate = s => {{ try {{ return new Date(s).toLocaleDateString('en-US',{{month:'short',day:'numeric'}}); }} catch {{ return s; }} }};
+
+        // Toast
+        const toast = (title, type='info') => {{
+            const t = document.createElement('div');
+            t.className = 'toast';
+            t.innerHTML = `<span class="toast-icon ${{type}}" style="width:16px;height:16px;">${{type==='success'?'{icon("trending-up",16)}':'{icon("info",16)}'}}</span><span class="toast-title">${{esc(title)}}</span><span class="toast-close" onclick="this.parentElement.remove()" style="width:14px;height:14px;">{icon("user-x",14)}</span>`;
+            document.getElementById('toasts').appendChild(t);
+            setTimeout(() => t.remove(), 4000);
+        }};
+
+        // Sections
+        const toggleSection = id => document.getElementById(id).classList.toggle('collapsed');
+        const showMore = gid => {{ document.querySelectorAll(`#${{gid}} .hidden`).forEach(c => c.classList.remove('hidden')); }};
+        const filterUsers = (gid, q) => {{
+            const grid = document.getElementById(gid);
+            if (!grid) return;
+            q = q.toLowerCase();
+            grid.querySelectorAll('.user-card').forEach(c => {{
+                const h = c.dataset.handle || '';
+                c.style.display = h.includes(q) ? '' : 'none';
+            }});
+        }};
+
+        // Time range
+        const changeTimeRange = d => {{
+            timeRange = d;
+            document.querySelectorAll('.time-btn').forEach(b => b.classList.toggle('active', +b.dataset.days === d));
+            document.getElementById('analytics-badge').textContent = timeLabel(d);
+            loadAll(d);
+        }};
+
+        // Chart colors
+        const colors = () => {{
+            const dark = getTheme() === 'dark';
+            return {{
+                grid: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+                text: dark ? '#a3a3a3' : '#6b7280',
+                accent: '#2563eb',
+                success: '#059669',
+                warning: '#d97706',
+                error: '#dc2626'
+            }};
+        }};
+
+        const updateCharts = () => {{
+            const c = colors();
+            Object.values(charts).forEach(ch => {{
+                if (!ch) return;
+                ['x','y'].forEach(axis => {{
+                    if (ch.options.scales?.[axis]) {{
+                        ch.options.scales[axis].grid.color = c.grid;
+                        ch.options.scales[axis].ticks.color = c.text;
+                    }}
+                }});
+                if (ch.options.plugins?.legend?.labels) ch.options.plugins.legend.labels.color = c.text;
+                ch.update('none');
+            }});
+        }};
+
+        // Data loading
+        const loadAll = async d => {{
+            await Promise.all([loadStats(d), loadGrowth(d), loadEng(d), loadPosts(d), loadBreakdown(d), loadTopPosts(d), loadUnfollowers(d), loadInteractors(d), loadBalance(d)]);
+        }};
+
+        const loadStats = async d => {{
+            try {{
+                const r = await fetch(`/api/graphs/stats-summary?days=${{d}}`);
+                const data = await r.json();
+                document.getElementById('stat-days').textContent = data.daysTracked || '0';
+                const ch = data.followerChange || 0;
+                const el = document.getElementById('stat-change');
+                el.textContent = ch >= 0 ? `+${{ch}}` : ch;
+                el.style.color = ch >= 0 ? 'var(--success)' : 'var(--error)';
+                document.getElementById('stat-posts').textContent = data.totalPosts || '0';
+                document.getElementById('stat-engagement').textContent = (data.avgEngagementPerPost || 0).toFixed(1);
+            }} catch(e) {{ console.error(e); }}
+        }};
+
+        const loadGrowth = async d => {{
+            try {{
+                const r = await fetch(`/api/graphs/follower-growth?days=${{d}}`);
+                const data = await r.json();
+                const ctx = document.getElementById('growthChart').getContext('2d');
+                const c = colors();
+                if (charts.growth) charts.growth.destroy();
+                if (!data.dates?.length) return;
+                charts.growth = new Chart(ctx, {{
+                    type: 'line',
+                    data: {{
+                        labels: data.dates,
+                        datasets: [
+                            {{ label: 'Followers', data: data.followers, borderColor: c.accent, backgroundColor: c.accent+'15', borderWidth: 2, fill: true, tension: 0.4, pointRadius: 0 }},
+                            {{ label: 'Following', data: data.following, borderColor: c.warning, backgroundColor: c.warning+'15', borderWidth: 2, fill: true, tension: 0.4, pointRadius: 0 }}
+                        ]
+                    }},
+                    options: {{
+                        responsive: true, maintainAspectRatio: false,
+                        interaction: {{ mode: 'index', intersect: false }},
+                        plugins: {{ legend: {{ position: 'bottom', labels: {{ color: c.text, usePointStyle: true }} }} }},
+                        scales: {{
+                            x: {{ grid: {{ color: c.grid }}, ticks: {{ color: c.text }} }},
+                            y: {{ grid: {{ color: c.grid }}, ticks: {{ color: c.text, precision: 0 }}, beginAtZero: false }}
+                        }}
+                    }}
+                }});
+            }} catch(e) {{ console.error(e); }}
+        }};
+
+        const loadEng = async d => {{
+            try {{
+                const r = await fetch(`/api/graphs/engagement-timeline?days=${{d}}`);
+                const data = await r.json();
+                engData.daily = data.daily;
+                engData.cumulative = data.cumulative;
+                renderEng();
+            }} catch(e) {{ console.error(e); }}
+        }};
+
+        const toggleEngView = () => {{
+            engData.view = engData.view === 'cumulative' ? 'daily' : 'cumulative';
+            document.getElementById('engToggle').textContent = engData.view === 'cumulative' ? 'Daily' : 'Cumulative';
+            renderEng();
+        }};
+
+        const renderEng = () => {{
+            if (!engData.daily) return;
+            const data = engData.view === 'cumulative' ? engData.cumulative : engData.daily;
+            const ctx = document.getElementById('engChart').getContext('2d');
+            const c = colors();
+            const isCum = engData.view === 'cumulative';
+            if (charts.eng) charts.eng.destroy();
+            if (!data?.dates?.length) return;
+            charts.eng = new Chart(ctx, {{
+                type: isCum ? 'line' : 'bar',
+                data: {{
+                    labels: data.dates,
+                    datasets: [
+                        {{ label: 'Likes', data: data.likes, borderColor: '#ec4899', backgroundColor: isCum ? '#ec489915' : '#ec4899cc', borderWidth: 2, fill: isCum, tension: 0.4, pointRadius: 0 }},
+                        {{ label: 'Reposts', data: data.reposts, borderColor: c.success, backgroundColor: isCum ? c.success+'15' : c.success+'cc', borderWidth: 2, fill: isCum, tension: 0.4, pointRadius: 0 }},
+                        {{ label: 'Replies', data: data.replies, borderColor: c.accent, backgroundColor: isCum ? c.accent+'15' : c.accent+'cc', borderWidth: 2, fill: isCum, tension: 0.4, pointRadius: 0 }}
+                    ]
+                }},
+                options: {{
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: {{ mode: 'index', intersect: false }},
+                    plugins: {{ legend: {{ position: 'bottom', labels: {{ color: c.text, usePointStyle: true }} }} }},
+                    scales: {{
+                        x: {{ grid: {{ color: c.grid }}, ticks: {{ color: c.text }}, stacked: !isCum }},
+                        y: {{ grid: {{ color: c.grid }}, ticks: {{ color: c.text, precision: 0 }}, beginAtZero: true, stacked: !isCum }}
+                    }}
+                }}
+            }});
+        }};
+
+        const loadPosts = async d => {{
+            try {{
+                const r = await fetch(`/api/graphs/posting-frequency?days=${{d}}`);
+                const data = await r.json();
+                const ctx = document.getElementById('postsChart').getContext('2d');
+                const c = colors();
+                if (charts.posts) charts.posts.destroy();
+                if (!data.dates?.length) return;
+                charts.posts = new Chart(ctx, {{
+                    type: 'bar',
+                    data: {{ labels: data.dates, datasets: [{{ label: 'Posts', data: data.posts, backgroundColor: c.warning+'cc', borderRadius: 4 }}] }},
+                    options: {{
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {{ legend: {{ display: false }} }},
+                        scales: {{
+                            x: {{ grid: {{ display: false }}, ticks: {{ color: c.text }} }},
+                            y: {{ grid: {{ color: c.grid }}, ticks: {{ color: c.text, precision: 0 }}, beginAtZero: true }}
+                        }}
+                    }}
+                }});
+            }} catch(e) {{ console.error(e); }}
+        }};
+
+        const loadBreakdown = async d => {{
+            try {{
+                const r = await fetch(`/api/graphs/engagement-breakdown?days=${{d}}`);
+                const data = await r.json();
+                const ctx = document.getElementById('breakdownChart').getContext('2d');
+                const c = colors();
+                if (charts.breakdown) charts.breakdown.destroy();
+                if (!data.values?.some(v => v > 0)) return;
+                charts.breakdown = new Chart(ctx, {{
+                    type: 'doughnut',
+                    data: {{ labels: data.labels, datasets: [{{ data: data.values, backgroundColor: ['#ec4899', c.success, c.accent, '#a855f7', c.warning], borderWidth: 0 }}] }},
+                    options: {{
+                        responsive: true, maintainAspectRatio: false, cutout: '60%',
+                        plugins: {{ legend: {{ position: 'bottom', labels: {{ color: c.text, usePointStyle: true }} }} }}
+                    }}
+                }});
+            }} catch(e) {{ console.error(e); }}
+        }};
+
+        const loadTopPosts = async d => {{
+            const container = document.getElementById('posts-container');
+            const badge = document.getElementById('posts-count');
+            try {{
+                const r = await fetch(`/api/top-posts?days=${{d}}`);
+                const data = await r.json();
+                badge.textContent = data.count || 0;
+                if (!data.posts?.length) {{ container.innerHTML = '<div class="empty">No posts</div>'; return; }}
+                let html = '';
+                for (const p of data.posts.slice(0, 10)) {{
+                    const score = (p.likes||0) + (p.reposts||0)*2 + (p.replies||0)*3;
+                    const id = p.uri?.split('/').pop() || '';
+                    const url = id ? `https://bsky.app/profile/${{encodeURIComponent(handle)}}/post/${{encodeURIComponent(id)}}` : '#';
+                    html += `<div class="post" onclick="window.open('${{url}}','_blank')">
+                        <div class="post-header">
+                            <div class="post-avatar">${{avatarUrl ? `<img src="${{esc(avatarUrl)}}" alt="">` : ''}}</div>
+                            <div class="post-author">@${{esc(handle)}}</div>
+                            <div class="post-date">${{fmtDate(p.created_at)}}</div>
+                        </div>
+                        <div class="post-text">${{esc((p.text||'').slice(0,280))}}</div>
+                        <div class="post-stats">
+                            <span class="post-stat">{icon("heart",14)}${{p.likes||0}}</span>
+                            <span class="post-stat">{icon("repeat",14)}${{p.reposts||0}}</span>
+                            <span class="post-stat">{icon("message",14)}${{p.replies||0}}</span>
+                            <span class="post-score">{icon("trending-up",14)}${{score}}</span>
+                        </div>
+                    </div>`;
+                }}
+                container.innerHTML = html;
+            }} catch(e) {{ container.innerHTML = '<div class="empty">Error loading</div>'; }}
+        }};
+
+        const loadUnfollowers = async d => {{
+            const container = document.getElementById('unfollowers-container');
+            const badge = document.getElementById('unfollowers-count');
+            try {{
+                const r = await fetch(`/api/unfollowers?days=${{d}}`);
+                const data = await r.json();
+                badge.textContent = data.unfollowers?.length || 0;
+                if (!data.unfollowers?.length) {{ container.innerHTML = '<div class="empty">No unfollowers</div>'; return; }}
+                let html = '<div class="user-grid">';
+                for (const u of data.unfollowers) {{
+                    const h = u.handle || '';
+                    html += `<a href="https://bsky.app/profile/${{encodeURIComponent(h)}}" target="_blank" class="user-card">
+                        <div class="avatar"><span class="avatar-fallback">${{(h[0]||'?').toUpperCase()}}</span></div>
+                        <div class="user-info"><div class="user-name">@${{esc(h)}}<span class="tag tag-muted">${{fmtDate(u.date)}}</span></div></div>
+                    </a>`;
+                }}
+                container.innerHTML = html + '</div>';
+            }} catch(e) {{ container.innerHTML = '<div class="empty">Error</div>'; }}
+        }};
+
+        const loadInteractors = async d => {{
+            const container = document.getElementById('interactors-container');
+            const badge = document.getElementById('interactors-count');
+            try {{
+                const r = await fetch(`/api/top-interactors?days=${{d}}`);
+                const data = await r.json();
+                badge.textContent = data.interactors?.length || 0;
+                if (!data.interactors?.length) {{ container.innerHTML = '<div class="empty">No data</div>'; return; }}
+                let html = '<div class="user-grid">';
+                for (const u of data.interactors.slice(0, 20)) {{
+                    const h = u.handle || '';
+                    const n = u.display_name || h;
+                    const a = u.avatar || '';
+                    html += `<a href="https://bsky.app/profile/${{encodeURIComponent(h)}}" target="_blank" class="user-card">
+                        <div class="avatar">${{a ? `<img src="${{esc(a)}}" alt="" onerror="this.style.display='none'">` : ''}}<span class="avatar-fallback">${{(n[0]||'?').toUpperCase()}}</span></div>
+                        <div class="user-info"><div class="user-name">${{esc(n)}}</div><div class="user-handle">@${{esc(h)}}</div></div>
+                        <span class="badge badge-success">${{u.total_score||0}}</span>
+                    </a>`;
+                }}
+                container.innerHTML = html + '</div>';
+            }} catch(e) {{ container.innerHTML = '<div class="empty">Error</div>'; }}
+        }};
+
+        const loadBalance = async d => {{
+            try {{
+                const r = await fetch(`/api/engagement-balance?days=${{d}}`);
+                const data = await r.json();
+                document.getElementById('given-likes').textContent = fmt(data.given?.likes || 0);
+                document.getElementById('given-reposts').textContent = fmt(data.given?.reposts || 0);
+                document.getElementById('given-replies').textContent = fmt(data.given?.replies || 0);
+                document.getElementById('given-total').textContent = fmt(data.given?.total || 0);
+                document.getElementById('received-likes').textContent = fmt(data.received?.likes || 0);
+                document.getElementById('received-reposts').textContent = fmt(data.received?.reposts || 0);
+                document.getElementById('received-replies').textContent = fmt(data.received?.replies || 0);
+                document.getElementById('received-total').textContent = fmt(data.received?.total || 0);
+                const ratio = data.ratio || 0;
+                document.getElementById('balance-ratio').textContent = ratio.toFixed(2);
+                document.getElementById('balance-type').textContent = ratio > 1 ? 'Giver' : ratio < 1 ? 'Receiver' : 'Balanced';
+            }} catch(e) {{ console.error(e); }}
+        }};
+
+        // Refresh
+        const refreshData = async () => {{
             const btn = document.getElementById('refresh-btn');
-            const originalText = btn.innerHTML;
+            btn.classList.add('loading');
             btn.disabled = true;
-            btn.innerHTML = '<span class="material-icons" style="font-size: 18px; animation: spin 1s linear infinite;">sync</span> Refreshing...';
-            btn.style.opacity = '0.6';
-            
-            try {
-                const response = await fetch('/api/collect', { method: 'POST' });
-                const result = await response.json();
-                
-                if (result.success) {
-                    btn.innerHTML = '<span class="material-icons" style="font-size: 18px; color: #00897B;">check_circle</span> Success!';
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1000);
-                } else {
-                    btn.innerHTML = '<span class="material-icons" style="font-size: 18px; color: #D32F2F;">error</span> Failed';
-                    setTimeout(() => {
-                        btn.innerHTML = originalText;
-                        btn.disabled = false;
-                        btn.style.opacity = '1';
-                    }, 2000);
-                }
-            } catch (error) {
-                btn.innerHTML = '<span class="material-icons" style="font-size: 18px; color: #D32F2F;">error</span> Error';
-                setTimeout(() => {
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
-                    btn.style.opacity = '1';
-                }, 2000);
-            }
-        }
+            try {{
+                const r = await fetch('/api/collect', {{ method: 'POST' }});
+                const data = await r.json();
+                if (data.success) {{
+                    toast('Data refreshed', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                }} else {{
+                    toast('Refresh failed', 'error');
+                }}
+            }} catch(e) {{
+                toast('Network error', 'error');
+            }} finally {{
+                btn.classList.remove('loading');
+                btn.disabled = false;
+            }}
+        }};
+
+        // Avatar
+        const loadAvatar = async () => {{
+            try {{
+                const r = await fetch(`https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${{encodeURIComponent(handle)}}`);
+                const data = await r.json();
+                avatarUrl = data.avatar || null;
+                if (avatarUrl) {{
+                    document.getElementById('header-avatar').innerHTML = `<img src="${{esc(avatarUrl)}}" alt="">`;
+                }}
+            }} catch(e) {{}}
+        }};
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', e => {{
+            if (e.target.tagName === 'INPUT') return;
+            if (e.key === 'r' && !e.metaKey && !e.ctrlKey) {{ e.preventDefault(); refreshData(); }}
+            if (e.key === 't') {{ e.preventDefault(); toggleTheme(); }}
+            if (e.key >= '1' && e.key <= '5') {{ e.preventDefault(); changeTimeRange([1,7,30,90,365][e.key-1]); }}
+        }});
+
+        // Init
+        const init = () => {{
+            loadAvatar();
+            if (typeof Chart !== 'undefined') loadAll(timeRange);
+            else setTimeout(init, 100);
+        }};
+        document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', init) : init();
     </script>
-    <style>
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-    </style>
 </body>
-</html>"""
-
-    page_html += """
-    <script>
-    // ========================================================================
-// CHART.JS HISTORICAL ANALYTICS
-// ========================================================================
-
-let currentTimeRange = 30;  // Default to 30 days
-let chartInstances = {};
-// Store both daily and cumulative engagement data
-let engagementDataStore = {
-    daily: null,
-    cumulative: null,
-    currentView: "cumulative"
-};
-
-function toggleEngagementView() {
-    const button = document.getElementById("engagementViewToggle");
-
-    if (engagementDataStore.currentView === "cumulative") {
-        engagementDataStore.currentView = "daily";
-        button.textContent = "Cumulative";
-        button.style.background = "#4CAF50";
-    } else {
-        engagementDataStore.currentView = "cumulative";
-        button.textContent = "Daily";
-        button.style.background = "#1976D2";
-    }
-
-    updateEngagementChart();
-}
-
-function updateEngagementChart() {
-    if (!engagementDataStore.daily) {
-        return;
-    }
-
-    // Destroy existing chart and recreate with new type
-    if (chartInstances.engagementTimeline) {
-        chartInstances.engagementTimeline.destroy();
-    }
-
-    const dataToShow = engagementDataStore.currentView === "cumulative"
-        ? engagementDataStore.cumulative
-        : engagementDataStore.daily;
-
-    const ctx = document.getElementById('engagementTimelineChart').getContext('2d');
-
-    chartInstances.engagementTimeline = new Chart(ctx, {
-        type: engagementDataStore.currentView === 'cumulative' ? 'line' : 'bar',
-        data: {
-            labels: dataToShow.dates,
-            datasets: [
-                {
-                    label: 'Likes',
-                    data: dataToShow.likes,
-                    backgroundColor: engagementDataStore.currentView === 'cumulative' ? 'rgba(233, 30, 99, 0.1)' : 'rgba(233, 30, 99, 0.8)',
-                    borderColor: '#E91E63',
-                    borderWidth: 2,
-                    fill: engagementDataStore.currentView === 'cumulative',
-                    tension: 0.4
-                },
-                {
-                    label: 'Reposts',
-                    data: dataToShow.reposts,
-                    backgroundColor: engagementDataStore.currentView === 'cumulative' ? 'rgba(76, 175, 80, 0.1)' : 'rgba(76, 175, 80, 0.8)',
-                    borderColor: '#4CAF50',
-                    borderWidth: 2,
-                    fill: engagementDataStore.currentView === 'cumulative',
-                    tension: 0.4
-                },
-                {
-                    label: 'Replies',
-                    data: dataToShow.replies,
-                    backgroundColor: engagementDataStore.currentView === 'cumulative' ? 'rgba(33, 150, 243, 0.1)' : 'rgba(33, 150, 243, 0.8)',
-                    borderColor: '#2196F3',
-                    borderWidth: 2,
-                    fill: engagementDataStore.currentView === 'cumulative',
-                    tension: 0.4
-                },
-                {
-                    label: 'Quotes',
-                    data: dataToShow.quotes,
-                    backgroundColor: engagementDataStore.currentView === 'cumulative' ? 'rgba(156, 39, 176, 0.1)' : 'rgba(156, 39, 176, 0.8)',
-                    borderColor: '#9C27B0',
-                    borderWidth: 2,
-                    fill: engagementDataStore.currentView === 'cumulative',
-                    tension: 0.4
-                },
-                {
-                    label: 'Bookmarks',
-                    data: dataToShow.bookmarks,
-                    backgroundColor: engagementDataStore.currentView === 'cumulative' ? 'rgba(255, 152, 0, 0.1)' : 'rgba(255, 152, 0, 0.8)',
-                    borderColor: '#FF9800',
-                    borderWidth: 2,
-                    fill: engagementDataStore.currentView === 'cumulative',
-                    tension: 0.4
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'bottom'
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    stacked: false,
-                    ticks: {
-                        precision: 0
-                    }
-                },
-                x: {
-                    stacked: false
-                }
-            },
-            interaction: {
-                mode: 'nearest',
-                axis: 'x',
-                intersect: false
-            }
-        }
-    });
-}
-
-// Initialize charts on page load - wait for both DOM and Chart.js
-function initCharts() {
-    console.log('Initializing charts...');
-    console.log('Chart.js available:', typeof Chart !== 'undefined');
-    console.log('Current time range:', currentTimeRange);
-
-    if (typeof Chart === 'undefined') {
-        console.error('Chart.js not loaded! Retrying in 500ms...');
-        setTimeout(initCharts, 500);
-        return;
-    }
-
-    // Check if canvas elements exist
-    const canvases = [
-        'followerGrowthChart',
-        'engagementTimelineChart',
-        'postingFrequencyChart',
-        'engagementBreakdownChart'
-    ];
-
-    let allFound = true;
-    canvases.forEach(id => {
-        const el = document.getElementById(id);
-        console.log(`Canvas ${id}:`, el ? 'found' : 'NOT FOUND');
-        if (!el) allFound = false;
-    });
-
-    if (!allFound) {
-        console.error('Not all canvas elements found! Retrying in 500ms...');
-        setTimeout(initCharts, 500);
-        return;
-    }
-
-    console.log('All prerequisites met, loading graphs...');
-    loadAllGraphs(currentTimeRange);
-}
-
-// Wait for DOM to be ready, then init charts
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initCharts);
-} else {
-    // DOM already loaded
-    initCharts();
-}
-
-function changeGlobalTimeRange(days) {
-    currentTimeRange = days;
-
-    // Update button states
-    document.querySelectorAll('.time-range-btn').forEach(btn => {
-        btn.classList.remove('active');
-        if (parseInt(btn.getAttribute('data-days')) === days || (days > 365 && btn.getAttribute('data-days') === '999999')) {
-            btn.classList.add('active');
-        }
-    });
-
-    // Update subtitle
-    const subtitle = document.getElementById('analytics-subtitle');
-    const timeLabel = getTimeLabel(days);
-    if (subtitle) subtitle.textContent = timeLabel;
-
-    // Reload all time-dependent sections
-    loadAllGraphs(days);
-    loadTopPosts(days);
-    loadUnfollowers(days);
-    loadTopInteractors(days);
-    loadEngagementBalance(days);
-}
-
-function getTimeLabel(days) {
-    if (days === 1) return 'Last 24 hours';
-    if (days === 7) return 'Last 7 days';
-    if (days === 30) return 'Last 30 days';
-    if (days === 90) return 'Last 90 days';
-    if (days === 365) return 'Last year';
-    return 'All time';
-}
-
-async function loadAllGraphs(days) {
-    console.log('loadAllGraphs called with days:', days);
-    try {
-        await loadStatsSummary(days);
-        console.log('Stats summary loaded');
-
-        await loadFollowerGrowthChart(days);
-        console.log('Follower growth chart loaded');
-
-        await loadEngagementTimelineChart(days);
-        console.log('Engagement timeline loaded');
-
-        await loadPostingFrequencyChart(days);
-        console.log('Posting frequency loaded');
-
-        await loadEngagementBreakdownChart(days);
-        console.log('Engagement breakdown loaded');
-
-        console.log('All graphs loaded successfully!');
-    } catch (error) {
-        console.error('Error loading graphs:', error);
-    }
-}
-
-async function loadStatsSummary(days) {
-    try {
-        const response = await fetch(`/api/graphs/stats-summary?days=${days}`);
-        const data = await response.json();
-
-        document.getElementById('stat-days-tracked').textContent = data.daysTracked || '0';
-
-        const changeElem = document.getElementById('stat-follower-change');
-        const change = data.followerChange || 0;
-        changeElem.textContent = change >= 0 ? `+${change}` : change;
-        changeElem.style.color = change >= 0 ? '#388E3C' : '#D32F2F';
-
-        document.getElementById('stat-total-posts').textContent = data.totalPosts || '0';
-        document.getElementById('stat-avg-engagement').textContent = (data.avgEngagementPerPost || 0).toFixed(1);
-
-        // Update new engagement change cards
-        const formatChange = (value, elem, positiveColor) => {
-            elem.textContent = value >= 0 ? `+${value}` : value;
-            elem.style.color = value >= 0 ? positiveColor : '#D32F2F';
-        };
-
-        formatChange(data.likesChange || 0, document.getElementById('stat-likes-change'), '#D32F2F');
-        formatChange(data.repostsQuotesChange || 0, document.getElementById('stat-reposts-quotes-change'), '#00838F');
-        formatChange(data.repliesChange || 0, document.getElementById('stat-replies-change'), '#FF8F00');
-        formatChange(data.savesChange || 0, document.getElementById('stat-saves-change'), '#3949AB');
-
-    } catch (error) {
-        console.error('Error loading stats summary:', error);
-    }
-}
-
-async function loadFollowerGrowthChart(days) {
-    try {
-        const response = await fetch(`/api/graphs/follower-growth?days=${days}`);
-        const data = await response.json();
-
-        const ctx = document.getElementById('followerGrowthChart').getContext('2d');
-
-        // Destroy existing chart if it exists
-        if (chartInstances.followerGrowth) {
-            chartInstances.followerGrowth.destroy();
-        }
-
-        // Handle empty data
-        if (!data.dates || data.dates.length === 0) {
-            ctx.fillStyle = '#999';
-            ctx.font = '14px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('No data available yet', ctx.canvas.width / 2, ctx.canvas.height / 2);
-            return;
-        }
-
-        chartInstances.followerGrowth = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: data.dates,
-                datasets: [
-                    {
-                        label: 'Followers',
-                        data: data.followers,
-                        borderColor: '#1976D2',
-                        backgroundColor: 'rgba(25, 118, 210, 0.1)',
-                        borderWidth: 3,
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 4,
-                        pointHoverRadius: 6
-                    },
-                    {
-                        label: 'Following',
-                        data: data.following,
-                        borderColor: '#FF9800',
-                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
-                        borderWidth: 3,
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 4,
-                        pointHoverRadius: 6
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'bottom'
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: false,
-                        ticks: {
-                            precision: 0
-                        },
-                        // Add some padding to y-axis
-                        grace: '5%'
-                    },
-                    x: {
-                        // Show grid for better visibility
-                        grid: {
-                            display: true
-                        }
-                    }
-                }
-            }
-        });
-
-    } catch (error) {
-        console.error('Error loading follower growth chart:', error);
-    }
-}
-
-async function loadEngagementTimelineChart(days) {
-    try {
-        const response = await fetch(`/api/graphs/engagement-timeline?days=${days}`);
-        const responseData = await response.json();
-
-        // Store both daily and cumulative data
-        engagementDataStore.daily = responseData.daily;
-        engagementDataStore.cumulative = responseData.cumulative;
-
-        // Use cumulative by default
-        const data = engagementDataStore.cumulative;
-
-        const ctx = document.getElementById('engagementTimelineChart').getContext('2d');
-
-        if (chartInstances.engagementTimeline) {
-            chartInstances.engagementTimeline.destroy();
-        }
-
-        // Handle empty data
-        if (!data.dates || data.dates.length === 0) {
-            ctx.fillStyle = '#999';
-            ctx.font = '14px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('No engagement data available yet', ctx.canvas.width / 2, ctx.canvas.height / 2);
-            return;
-        }
-
-        chartInstances.engagementTimeline = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: data.dates,
-                datasets: [
-                    {
-                        label: 'Likes',
-                        data: data.likes,
-                        borderColor: '#E91E63',
-                        backgroundColor: 'rgba(233, 30, 99, 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: data.dates.length === 1 ? 6 : 3,
-                        borderWidth: 2
-                    },
-                    {
-                        label: 'Reposts',
-                        data: data.reposts,
-                        borderColor: '#4CAF50',
-                        backgroundColor: 'rgba(76, 175, 80, 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: data.dates.length === 1 ? 6 : 3,
-                        borderWidth: 2
-                    },
-                    {
-                        label: 'Replies',
-                        data: data.replies,
-                        borderColor: '#2196F3',
-                        backgroundColor: 'rgba(33, 150, 243, 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: data.dates.length === 1 ? 6 : 3,
-                        borderWidth: 2
-                    },
-                    {
-                        label: 'Quotes',
-                        data: data.quotes,
-                        borderColor: '#9C27B0',
-                        backgroundColor: 'rgba(156, 39, 176, 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: data.dates.length === 1 ? 6 : 3,
-                        borderWidth: 2
-                    },
-                    {
-                        label: 'Bookmarks',
-                        data: data.bookmarks,
-                        borderColor: '#FF9800',
-                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: data.dates.length === 1 ? 6 : 3,
-                        borderWidth: 2
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'bottom'
-                    }
-                },
-                scales: {
-                    y: {
-                        stacked: false,
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0
-                        }
-                    },
-                    x: {
-                        stacked: false
-                    }
-                }
-            }
-        });
-
-    } catch (error) {
-        console.error('Error loading engagement timeline chart:', error);
-    }
-}
-
-async function loadPostingFrequencyChart(days) {
-    try {
-        const response = await fetch(`/api/graphs/posting-frequency?days=${days}`);
-        const data = await response.json();
-
-        const ctx = document.getElementById('postingFrequencyChart').getContext('2d');
-
-        if (chartInstances.postingFrequency) {
-            chartInstances.postingFrequency.destroy();
-        }
-
-        // Handle empty data
-        if (!data.dates || data.dates.length === 0) {
-            ctx.fillStyle = '#999';
-            ctx.font = '14px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('No posting data available yet', ctx.canvas.width / 2, ctx.canvas.height / 2);
-            return;
-        }
-
-        chartInstances.postingFrequency = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: data.dates,
-                datasets: [
-                    {
-                        label: 'Posts',
-                        data: data.posts,
-                        backgroundColor: 'rgba(255, 152, 0, 0.8)',
-                        borderWidth: 0,
-                        barPercentage: 0.8
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0
-                        }
-                    }
-                }
-            }
-        });
-
-    } catch (error) {
-        console.error('Error loading posting frequency chart:', error);
-    }
-}
-
-async function loadEngagementBreakdownChart(days) {
-    try {
-        const response = await fetch(`/api/graphs/engagement-breakdown?days=${days}`);
-        const data = await response.json();
-
-        const ctx = document.getElementById('engagementBreakdownChart').getContext('2d');
-
-        if (chartInstances.engagementBreakdown) {
-            chartInstances.engagementBreakdown.destroy();
-        }
-
-        // Handle empty data
-        if (!data.values || data.values.every(v => v === 0)) {
-            ctx.fillStyle = '#999';
-            ctx.font = '14px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('No engagement data available yet', ctx.canvas.width / 2, ctx.canvas.height / 2);
-            return;
-        }
-
-        chartInstances.engagementBreakdown = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: data.labels,
-                datasets: [
-                    {
-                        data: data.values,
-                        backgroundColor: [
-                            'rgba(233, 30, 99, 0.8)',   // Likes - Pink
-                            'rgba(76, 175, 80, 0.8)',   // Reposts - Green
-                            'rgba(33, 150, 243, 0.8)',  // Replies - Blue
-                            'rgba(156, 39, 176, 0.8)',  // Quotes - Purple
-                            'rgba(255, 152, 0, 0.8)'    // Bookmarks - Orange
-                        ],
-                        borderWidth: 2,
-                        borderColor: '#fff'
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'bottom'
-                    }
-                }
-            }
-        });
-
-    } catch (error) {
-        console.error('Error loading engagement breakdown chart:', error);
-    }
-}
-
-// ========================================================================
-// AJAX-LOADED SECTIONS
-// ========================================================================
-
-const blueskyHandle = """ + bluesky_handle_js + """;
-let userAvatarUrl = null;
-
-function escapeHtml(value) {
-    return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-function sanitizeUrl(value) {
-    const url = String(value ?? '').trim();
-    if (!url) return '';
-    try {
-        const parsed = new URL(url, window.location.href);
-        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-            return parsed.toString();
-        }
-    } catch (_) {}
-    return '';
-}
-
-function getInitial(value) {
-    const s = String(value ?? '').trim();
-    return escapeHtml((s[0] || '?').toUpperCase());
-}
-
-// Fetch user avatar on page load
-async function fetchUserAvatar() {
-    try {
-        const response = await fetch(`https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(blueskyHandle)}`);
-        const data = await response.json();
-        userAvatarUrl = sanitizeUrl(data.avatar) || null;
-    } catch (e) {
-        console.log('Could not fetch avatar:', e);
-    }
-}
-fetchUserAvatar();
-
-async function loadTopPosts(days) {
-    const container = document.getElementById('top-posts-container');
-    const countBadge = document.getElementById('top-posts-count');
-    const subtitle = document.getElementById('top-posts-subtitle');
-
-    try {
-        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;"><span class="material-icons" style="font-size: 48px; animation: spin 1s linear infinite;">sync</span><p>Loading top posts...</p></div>';
-
-        const response = await fetch(`/api/top-posts?days=${days}`);
-        const data = await response.json();
-
-        countBadge.textContent = data.count || 0;
-        subtitle.textContent = `Your most popular posts (${getTimeLabel(days).toLowerCase()})`;
-
-        if (!data.posts || data.posts.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><h4>No posts in this time period</h4></div>';
-            return;
-        }
-
-        let html = '';
-        for (const post of data.posts) {
-            const directScore = (post.likes || 0) + (post.reposts || 0) * 2 + (post.replies || 0) * 3 + (post.bookmarks || 0) * 2;
-            const indirectScore = ((post.indirect_likes || 0) + (post.indirect_reposts || 0) * 2 + (post.indirect_replies || 0) * 3 + (post.indirect_bookmarks || 0) * 2) * 0.5;
-            const engagementScore = Math.round(directScore + indirectScore);
-
-            const postId = post.uri ? post.uri.split('/').pop() : '';
-            const postUrl = postId ? `https://bsky.app/profile/${encodeURIComponent(blueskyHandle)}/post/${encodeURIComponent(postId)}` : '#';
-            const postText = escapeHtml(post.text || '');
-            const handleHtml = escapeHtml(blueskyHandle);
-            const safeAvatarUrl = userAvatarUrl ? escapeHtml(userAvatarUrl) : '';
-
-            let formattedDate = 'Unknown date';
-            if (post.created_at) {
-                try {
-                    const dt = new Date(post.created_at);
-                    formattedDate = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' at ' + dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-                } catch (e) {
-                    formattedDate = post.created_at;
-                }
-            }
-
-            const formattedDateHtml = escapeHtml(formattedDate);
-
-            const totalIndirect = (post.indirect_likes || 0) + (post.indirect_reposts || 0) + (post.indirect_replies || 0) + (post.indirect_bookmarks || 0);
-            const indirectBadge = totalIndirect > 0 ?
-                `<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #E1F5FE; border-radius: 12px; font-size: 13px;" title="Indirect Engagement from quote posts"><span class="material-icons" style="font-size: 16px; color: #0277BD;">add_circle</span><span style="font-weight: 500; color: #0277BD;">+${totalIndirect} indirect</span></div>` : '';
-
-            html += `
-                <div class="post-card" onclick="window.open('${postUrl}', '_blank')" style="background: white; border: 1px solid #E0E0E0; border-radius: 12px; padding: 0; margin-bottom: 16px; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden;">
-                    <div style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px 16px;">
-                        ${userAvatarUrl
-                            ? `<img src="${safeAvatarUrl}" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" alt="avatar" onerror="this.style.display='none'">`
-                            : `<div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #1976D2, #0288D1); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 20px; flex-shrink: 0;">${getInitial(blueskyHandle)}</div>`
-                        }
-                        <div style="flex: 1; min-width: 0;">
-                            <div style="font-weight: 600; font-size: 15px; color: #1C1B1F;">@${handleHtml}</div>
-                            <div style="font-size: 14px; color: #666;">Tracked Account</div>
-                        </div>
-                        <div style="font-size: 13px; color: #999;">${formattedDateHtml}</div>
-                    </div>
-                    <div style="padding: 0 16px 12px 16px;">
-                        <div style="font-size: 15px; color: #1C1B1F; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;">${postText}</div>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 20px; padding: 12px 16px; border-top: 1px solid #E0E0E0; background: #FAFAFA; font-size: 14px; flex-wrap: wrap;">
-                        <div style="display: inline-flex; align-items: center; gap: 6px;" title="Likes"><span class="material-icons" style="font-size: 18px; color: #1976D2;">favorite</span><span style="font-weight: 500;">${post.likes || 0}</span></div>
-                        <div style="display: inline-flex; align-items: center; gap: 6px;" title="Reposts"><span class="material-icons" style="font-size: 18px; color: #1976D2;">repeat</span><span style="font-weight: 500;">${post.reposts || 0}</span></div>
-                        <div style="display: inline-flex; align-items: center; gap: 6px;" title="Replies"><span class="material-icons" style="font-size: 18px; color: #1976D2;">chat_bubble_outline</span><span style="font-weight: 500;">${post.replies || 0}</span></div>
-                        <div style="display: inline-flex; align-items: center; gap: 6px;" title="Quotes"><span class="material-icons" style="font-size: 18px; color: #1976D2;">format_quote</span><span style="font-weight: 500;">${post.quotes || 0}</span></div>
-                        <div style="display: inline-flex; align-items: center; gap: 6px;" title="Saves"><span class="material-icons" style="font-size: 18px; color: #1976D2;">bookmark</span><span style="font-weight: 500;">${post.bookmarks || 0}</span></div>
-                        ${indirectBadge}
-                        <div style="display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-weight: 600; color: #1976D2; border-left: 1px solid #E0E0E0; padding-left: 20px;"><span class="material-icons" style="font-size: 18px;">trending_up</span><span>${engagementScore}</span></div>
-                    </div>
-                </div>`;
-        }
-        container.innerHTML = html;
-    } catch (error) {
-        console.error('Error loading top posts:', error);
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><h4>Error loading posts</h4></div>';
-    }
-}
-
-async function loadUnfollowers(days) {
-    const container = document.getElementById('unfollowers-container');
-    const countBadge = document.getElementById('unfollowers-count');
-    const subtitle = document.getElementById('unfollowers-subtitle');
-
-    try {
-        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;"><span class="material-icons" style="font-size: 48px; animation: spin 1s linear infinite;">sync</span><p>Loading unfollowers...</p></div>';
-
-        const response = await fetch(`/api/unfollowers?days=${days}`);
-        const data = await response.json();
-
-        countBadge.textContent = data.unfollowers ? data.unfollowers.length : 0;
-        subtitle.textContent = `People who unfollowed you (${getTimeLabel(days).toLowerCase()})`;
-
-        if (!data.unfollowers || data.unfollowers.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🎉</div><h4>No unfollowers in this time period</h4></div>';
-            return;
-        }
-
-        let html = '<div class="user-grid">';
-        for (const user of data.unfollowers) {
-            const handle = user.handle || '';
-            const displayName = user.display_name || handle;
-            const avatarUrl = user.avatar || '';
-            const changeDate = user.change_date || '';
-            const profileUrl = `https://bsky.app/profile/${encodeURIComponent(handle)}`;
-            const handleHtml = escapeHtml(handle);
-            const displayNameHtml = escapeHtml(displayName);
-            const changeDateHtml = escapeHtml(changeDate);
-            const initial = getInitial(displayName);
-            const safeAvatarUrl = sanitizeUrl(avatarUrl);
-
-            const avatarHtml = `
-                <div class="user-avatar">
-                    ${safeAvatarUrl ? `<img src="${escapeHtml(safeAvatarUrl)}" alt="${displayNameHtml}" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : ''}
-                    <div style="width:56px;height:56px;border-radius:50%;background:#CAC4D0;display:${safeAvatarUrl ? 'none' : 'flex'};align-items:center;justify-content:center;font-size:24px;color:#666;">${initial}</div>
-                </div>`;
-
-            html += `
-                <div class="user-card" onclick="window.open('${profileUrl}', '_blank')">
-                    ${avatarHtml}
-                    <div class="user-content">
-                        <div class="user-header">
-                            <span class="user-name">${displayNameHtml}</span>
-                            ${changeDate ? `<span class="user-meta">${changeDateHtml}</span>` : ''}
-                        </div>
-                        <div class="user-handle">@${handleHtml}</div>
-                    </div>
-                    <div class="user-action"><span class="material-icons">open_in_new</span></div>
-                </div>`;
-        }
-        html += '</div>';
-        container.innerHTML = html;
-    } catch (error) {
-        console.error('Error loading unfollowers:', error);
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><h4>Error loading unfollowers</h4></div>';
-    }
-}
-
-async function loadTopInteractors(days) {
-    const container = document.getElementById('top-interactors-container');
-    const countBadge = document.getElementById('top-interactors-count');
-    const subtitle = document.getElementById('top-interactors-subtitle');
-
-    try {
-        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;"><span class="material-icons" style="font-size: 48px; animation: spin 1s linear infinite;">sync</span><p>Loading top interactors...</p></div>';
-
-        const response = await fetch(`/api/top-interactors?days=${days}`);
-        const data = await response.json();
-
-        countBadge.textContent = data.count || 0;
-        subtitle.textContent = `People who engage most with your content (${getTimeLabel(days).toLowerCase()})`;
-
-        if (!data.interactors || data.interactors.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👥</div><h4>No interactors in this time period</h4></div>';
-            return;
-        }
-
-        let html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">';
-        for (const interactor of data.interactors) {
-            const handle = interactor.handle || '';
-            const displayName = interactor.display_name || handle;
-            const avatarUrl = interactor.avatar || '';
-            const score = interactor.score || 0;
-            const likes = interactor.likes || 0;
-            const replies = interactor.replies || 0;
-            const reposts = interactor.reposts || 0;
-            const quotes = interactor.quotes || 0;
-            const follows = interactor.follows || 0;
-            const profileUrl = `https://bsky.app/profile/${encodeURIComponent(handle)}`;
-            const handleHtml = escapeHtml(handle);
-            const displayNameHtml = escapeHtml(displayName);
-            const safeAvatarUrl = sanitizeUrl(avatarUrl);
-
-            const avatarHtml = safeAvatarUrl ?
-                `<div style="width: 56px; height: 56px;"><img src="${escapeHtml(safeAvatarUrl)}" alt="${displayNameHtml}" style="width: 56px; height: 56px; border-radius: 50%; object-fit: cover;" onerror="this.parentNode.style.display='none'" loading="lazy"></div>` : '';
-
-            let badgesHtml = '';
-            if (likes > 0) badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #E3F2FD; color: #1976D2;"><span class="material-icons" style="font-size: 14px;">favorite</span>${likes}</span>`;
-            if (replies > 0) badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #E3F2FD; color: #1976D2; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">chat_bubble</span>${replies}</span>`;
-            if (reposts > 0) badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #E1F5FE; color: #0288D1; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">repeat</span>${reposts}</span>`;
-            if (quotes > 0) badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #B3E5FC; color: #01579B; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">format_quote</span>${quotes}</span>`;
-            if (follows > 0) badgesHtml += `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; background: #BBDEFB; color: #1976D2; margin-left: 4px;"><span class="material-icons" style="font-size: 14px;">person_add</span>${follows}</span>`;
-
-            html += `
-                <div class="interactor-card" onclick="window.open('${profileUrl}', '_blank')">
-                    ${avatarHtml}
-                    <div style="flex: 1;">
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                            <div style="font-weight: 600; color: #1C1B1F; font-size: 15px;">${displayNameHtml}</div>
-                            <div style="background: #1976D2; color: white; padding: 4px 12px; border-radius: 12px; font-size: 13px; font-weight: 600;">${score}</div>
-                        </div>
-                        <div style="color: #49454F; font-size: 14px; margin-bottom: 12px;">@${handleHtml}</div>
-                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">${badgesHtml}</div>
-                    </div>
-                </div>`;
-        }
-        html += '</div>';
-        container.innerHTML = html;
-    } catch (error) {
-        console.error('Error loading top interactors:', error);
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><h4>Error loading top interactors</h4></div>';
-    }
-}
-
-async function loadEngagementBalance(days) {
-    try {
-        const url = days ? `/api/engagement/balance?days=${days}` : '/api/engagement/balance';
-        const response = await fetch(url);
-        const data = await response.json();
-
-        // Update Given column
-        document.getElementById('given-likes').textContent = data.given?.likes || 0;
-        document.getElementById('given-reposts').textContent = data.given?.reposts || 0;
-        document.getElementById('given-replies').textContent = data.given?.replies || 0;
-        document.getElementById('given-total').textContent = data.given?.total || 0;
-
-        // Update Received column
-        document.getElementById('received-likes').textContent = data.received?.likes || 0;
-        document.getElementById('received-reposts').textContent = data.received?.reposts || 0;
-        document.getElementById('received-replies').textContent = data.received?.replies || 0;
-        document.getElementById('received-total').textContent = data.received?.total || 0;
-
-        // Update ratio and balance type
-        const ratio = data.ratio || 0;
-        document.getElementById('balance-ratio').textContent = ratio.toFixed(2);
-
-        const balanceType = data.balance_type || 'balanced';
-        const balanceTypeElem = document.getElementById('balance-type');
-        const balanceIndicator = document.getElementById('balance-indicator');
-
-        if (balanceType === 'giver') {
-            balanceTypeElem.textContent = 'You give more';
-            balanceTypeElem.style.color = '#388E3C';
-            balanceIndicator.style.background = '#E8F5E9';
-        } else if (balanceType === 'receiver') {
-            balanceTypeElem.textContent = 'You receive more';
-            balanceTypeElem.style.color = '#1976D2';
-            balanceIndicator.style.background = '#E3F2FD';
-        } else {
-            balanceTypeElem.textContent = 'Balanced';
-            balanceTypeElem.style.color = '#666';
-            balanceIndicator.style.background = '#F5F5F5';
-        }
-
-        // Update subtitle
-        const subtitle = document.getElementById('engagement-balance-subtitle');
-        if (subtitle) {
-            subtitle.textContent = `Comparing what you give vs what you receive (${getTimeLabel(days || 999999).toLowerCase()})`;
-        }
-    } catch (error) {
-        console.error('Error loading engagement balance:', error);
-    }
-}
-
-// Load AJAX sections on page init
-document.addEventListener('DOMContentLoaded', function() {
-    loadTopPosts(currentTimeRange);
-    loadUnfollowers(currentTimeRange);
-    loadTopInteractors(currentTimeRange);
-    loadEngagementBalance(currentTimeRange);
-});
-
-    </script>
-    """
+</html>'''
 
     return page_html
