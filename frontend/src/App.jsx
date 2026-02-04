@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -280,7 +280,18 @@ function UserCard({ user, meta, isNew }) {
 // Interactor Card with engagement stats
 function InteractorCard({ user }) {
   const initial = (user.display_name?.[0] || user.handle?.[0] || '?').toUpperCase()
-  const [showTooltip, setShowTooltip] = useState(false)
+  const [tooltipPos, setTooltipPos] = useState(null)
+  const scoreRef = useRef(null)
+
+  const handleMouseEnter = () => {
+    if (scoreRef.current) {
+      const rect = scoreRef.current.getBoundingClientRect()
+      setTooltipPos({
+        top: rect.bottom + 8,
+        left: Math.max(10, rect.left - 60),
+      })
+    }
+  }
 
   return (
     <motion.a
@@ -302,19 +313,20 @@ function InteractorCard({ user }) {
         <span className="user-handle font-mono">@{user.handle}</span>
       </div>
       <div
+        ref={scoreRef}
         className="interactor-score-compact"
-        onMouseEnter={() => setShowTooltip(true)}
-        onMouseLeave={() => setShowTooltip(false)}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={() => setTooltipPos(null)}
       >
         <span className="score-value font-mono">{user.score}</span>
-        {showTooltip && (
-          <div className="score-tooltip">
+        {tooltipPos && (
+          <div className="score-tooltip" style={{ top: tooltipPos.top, left: tooltipPos.left }}>
             <div className="score-breakdown">
               <span><Heart size={12} /> {user.likes || 0} likes</span>
               <span><Repeat2 size={12} /> {user.reposts || 0} reposts</span>
               <span><MessageCircle size={12} /> {user.replies || 0} replies</span>
               <span><Quote size={12} /> {user.quotes || 0} quotes</span>
-              <span><UserPlus size={12} /> {user.follows ? 'Followed' : ''}</span>
+              {user.follows > 0 && <span><UserPlus size={12} /> Followed you</span>}
             </div>
           </div>
         )}
@@ -324,7 +336,7 @@ function InteractorCard({ user }) {
 }
 
 // Post Card
-function PostCard({ post, userHandle }) {
+function PostCard({ post, userHandle, userAvatar }) {
   // Extract the post ID (rkey) from the URI (format: at://did:xxx/app.bsky.feed.post/rkey)
   const rkey = post.uri?.split('/').pop()
   const handle = userHandle || 'costantinoai.bsky.social'
@@ -332,6 +344,7 @@ function PostCard({ post, userHandle }) {
   const date = post.created_at ? new Date(post.created_at).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric'
   }) : ''
+  const initial = handle[0]?.toUpperCase() || '?'
 
   // Calculate total engagement including indirect
   const totalLikes = (post.likes || 0) + (post.indirect_likes || 0)
@@ -346,16 +359,26 @@ function PostCard({ post, userHandle }) {
       className="post-card"
       whileHover={{ scale: 1.01 }}
     >
-      <p className="post-text">{post.text?.slice(0, 200)}{post.text?.length > 200 ? '...' : ''}</p>
-      <div className="post-meta">
-        <span className="post-date font-mono">{date}</span>
-        <div className="post-stats">
-          <span><Heart size={14} /> {totalLikes}</span>
-          <span><Repeat2 size={14} /> {totalReposts}</span>
-          <span><MessageCircle size={14} /> {totalReplies}</span>
-          <span><Quote size={14} /> {post.quotes || 0}</span>
-          <span><Bookmark size={14} /> {post.bookmarks || 0}</span>
+      <div className="post-header">
+        <div className="post-avatar">
+          {userAvatar ? (
+            <img src={userAvatar} alt="" loading="lazy" />
+          ) : (
+            <span className="avatar-fallback">{initial}</span>
+          )}
         </div>
+        <div className="post-author">
+          <span className="post-handle font-mono">@{handle}</span>
+          <span className="post-date font-mono">{date}</span>
+        </div>
+      </div>
+      <p className="post-text">{post.text?.slice(0, 280)}{post.text?.length > 280 ? '...' : ''}</p>
+      <div className="post-stats">
+        <span><Heart size={14} /> {totalLikes}</span>
+        <span><Repeat2 size={14} /> {totalReposts}</span>
+        <span><MessageCircle size={14} /> {totalReplies}</span>
+        <span><Quote size={14} /> {post.quotes || 0}</span>
+        <span><Bookmark size={14} /> {post.bookmarks || 0}</span>
       </div>
     </motion.a>
   )
@@ -1100,7 +1123,7 @@ export default function App() {
           {topPosts?.posts?.length > 0 ? (
             <div className="posts-grid">
               {topPosts.posts.slice(0, 10).map((post, i) => (
-                <PostCard key={post.uri || i} post={post} userHandle={profile?.handle} />
+                <PostCard key={post.uri || i} post={post} userHandle={profile?.handle} userAvatar={profile?.avatar} />
               ))}
             </div>
           ) : (

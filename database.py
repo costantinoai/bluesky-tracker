@@ -712,10 +712,22 @@ class Database:
                 f"Changes detected: {unfollower_count} unfollowers, {new_follower_count} new followers"
             )
 
-    def get_user_profile(self):
-        """Get the tracked user's profile (basic info from config)"""
-        # Profile is configured, not stored in DB
-        # Avatar could be fetched from public API if needed
+    def get_user_profile(self, handle=None):
+        """Get the tracked user's profile from public API"""
+        from public_api import PublicAPIClient
+        from config import Config
+        try:
+            client = PublicAPIClient()
+            profile = client.get_profile(handle or Config.BLUESKY_HANDLE)
+            if profile:
+                return {
+                    "display_name": profile.get("displayName"),
+                    "avatar": profile.get("avatar"),
+                    "bio": profile.get("description"),
+                    "did": profile.get("did"),
+                }
+        except Exception as e:
+            logger.warning(f"Failed to fetch user profile: {e}")
         return None
 
     def get_stats(self, days=30):
@@ -808,23 +820,37 @@ class Database:
 
         Deduplicates by DID - if the same person unfollowed multiple times,
         only shows the most recent unfollow event.
+        Includes avatar from historical snapshots if available.
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cutoff_date = (date.today() - timedelta(days=days)).isoformat()
-            # Use GROUP BY to deduplicate by DID, keeping only the most recent unfollow
+            # Join with historical follower snapshots to get avatar and display name
             cursor.execute(
                 """
-                SELECT handle, did, MAX(change_date) as change_date
-                FROM follower_changes
-                WHERE change_type = 'unfollowed' AND change_date > ?
-                GROUP BY did
+                SELECT fc.handle, fc.did, MAX(fc.change_date) as change_date,
+                       fs.display_name, fs.avatar_url, fs.bio
+                FROM follower_changes fc
+                LEFT JOIN (
+                    SELECT did, display_name, avatar_url, bio,
+                           ROW_NUMBER() OVER (PARTITION BY did ORDER BY collection_date DESC) as rn
+                    FROM followers_snapshot
+                ) fs ON fc.did = fs.did AND fs.rn = 1
+                WHERE fc.change_type = 'unfollowed' AND fc.change_date > ?
+                GROUP BY fc.did
                 ORDER BY change_date DESC
             """,
                 (cutoff_date,),
             )
             return [
-                {"handle": row[0], "did": row[1], "date": row[2]}
+                {
+                    "handle": row[0],
+                    "did": row[1],
+                    "date": row[2],
+                    "display_name": row[3],
+                    "avatar_url": row[4],
+                    "bio": row[5],
+                }
                 for row in cursor.fetchall()
             ]
 
