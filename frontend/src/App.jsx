@@ -280,18 +280,6 @@ function UserCard({ user, meta, isNew }) {
 // Interactor Card with engagement stats
 function InteractorCard({ user }) {
   const initial = (user.display_name?.[0] || user.handle?.[0] || '?').toUpperCase()
-  const [tooltipPos, setTooltipPos] = useState(null)
-  const scoreRef = useRef(null)
-
-  const handleMouseEnter = () => {
-    if (scoreRef.current) {
-      const rect = scoreRef.current.getBoundingClientRect()
-      setTooltipPos({
-        top: rect.bottom + 8,
-        left: Math.max(10, rect.left - 60),
-      })
-    }
-  }
 
   return (
     <motion.a
@@ -312,24 +300,17 @@ function InteractorCard({ user }) {
         <span className="user-name">{user.display_name || user.handle}</span>
         <span className="user-handle font-mono">@{user.handle}</span>
       </div>
-      <div
-        ref={scoreRef}
-        className="interactor-score-compact"
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={() => setTooltipPos(null)}
-      >
+      <div className="interactor-score-compact">
         <span className="score-value font-mono">{user.score}</span>
-        {tooltipPos && (
-          <div className="score-tooltip" style={{ top: tooltipPos.top, left: tooltipPos.left }}>
-            <div className="score-breakdown">
-              <span><Heart size={12} /> {user.likes || 0} likes</span>
-              <span><Repeat2 size={12} /> {user.reposts || 0} reposts</span>
-              <span><MessageCircle size={12} /> {user.replies || 0} replies</span>
-              <span><Quote size={12} /> {user.quotes || 0} quotes</span>
-              {user.follows > 0 && <span><UserPlus size={12} /> Followed you</span>}
-            </div>
+        <div className="score-tooltip">
+          <div className="score-breakdown">
+            <span><Heart size={12} /> {user.likes || 0} likes</span>
+            <span><Repeat2 size={12} /> {user.reposts || 0} reposts</span>
+            <span><MessageCircle size={12} /> {user.replies || 0} replies</span>
+            <span><Quote size={12} /> {user.quotes || 0} quotes</span>
+            {user.follows > 0 && <span><UserPlus size={12} /> Followed you</span>}
           </div>
-        )}
+        </div>
       </div>
     </motion.a>
   )

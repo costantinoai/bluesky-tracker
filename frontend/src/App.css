@@ -562,7 +562,7 @@
 }
 
 .section-content {
-  overflow: hidden;
+  overflow: visible;
 }
 
 .section-content > * {
@@ -867,6 +867,8 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: var(--space-3);
+  overflow: visible;
+  padding-bottom: var(--space-6);
 }
 
 .interactor-card {
@@ -940,7 +942,9 @@
 }
 
 .score-tooltip {
-  position: fixed;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
   min-width: 160px;
   padding: var(--space-3);
   background: var(--bg-elevated);
@@ -948,7 +952,17 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   z-index: 99999;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: all 0.15s ease;
   pointer-events: none;
+}
+
+.interactor-score-compact:hover .score-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
 }
 
 .score-breakdown {
