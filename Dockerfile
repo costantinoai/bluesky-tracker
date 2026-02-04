@@ -1,3 +1,17 @@
+# Stage 1: Build React frontend
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /frontend
+
+# Copy package files and install dependencies
+COPY frontend/package*.json ./
+RUN npm ci
+
+# Copy frontend source and build
+COPY frontend/ ./
+RUN npm run build
+
+# Stage 2: Python backend
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -24,19 +38,23 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN apt-get update && apt-get remove -y gcc && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 # Copy application files
-COPY app.py wsgi.py locks.py collector.py database.py config.py templates.py car_utils.py public_api.py time_utils.py http_client.py ./
+COPY app.py wsgi.py locks.py collector.py database.py config.py car_utils.py public_api.py time_utils.py http_client.py ./
+
+# Copy built React frontend from Stage 1
+COPY --from=frontend-builder /frontend/dist ./static
 
 # Create data directory
 RUN mkdir -p /app/data
 
 # Security: run as non-root (create app user)
-RUN useradd -m -u 1000 appuser &&     chown -R appuser:appuser /app
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 8095
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=30s     CMD curl -f http://localhost:8095/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=30s \
+    CMD curl -f http://localhost:8095/health || exit 1
 
 # Run with gunicorn for production
 CMD ["gunicorn", "--bind", "0.0.0.0:8095", "--workers", "2", "--timeout", "60", "--access-logfile", "-", "wsgi:app"]

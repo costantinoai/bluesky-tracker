@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from prometheus_client import Counter, Gauge, Histogram, generate_latest
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -9,13 +9,13 @@ import logging
 
 from config import Config
 from database import Database
-from templates import get_report_html
 from collector import BlueskyCollector
 from locks import try_file_lock
 
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+# Serve React frontend from static folder
+app = Flask(__name__, static_folder='static', static_url_path='')
 db = None
 collector = None
 scheduler = None
@@ -399,126 +399,26 @@ def api_collect():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-@app.route("/report")
-def report():
-    """Comprehensive HTML report page with all analytics"""
-    try:
-        # Get last collection time
-        from datetime import datetime
-        import sqlite3
+@app.route("/")
+def index():
+    """Serve React frontend"""
+    return send_from_directory(app.static_folder, 'index.html')
 
-        last_updated = "Never"
-        try:
-            conn = sqlite3.connect(db.db_path)
-            cursor = conn.cursor()
-            cursor.execute(
-                'SELECT MAX(run_date) FROM collection_log WHERE status = "success"'
-            )
-            last_run = cursor.fetchone()[0]
-            if last_run:
-                last_updated = datetime.fromisoformat(last_run).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
-            conn.close()
-        except Exception:
-            pass
 
-        # Gather all data
-        stats = db.get_stats(days=30)
-        unfollowers = db.get_unfollowers(days=30)
-        non_mutual = db.get_non_mutual_following()
-        followers_only = db.get_followers_only()
-        hidden_analytics = db.get_hidden_follower_analytics(days=30)
-        if hidden_analytics is None:
-            hidden_analytics = {}
-        change_history = db.get_follower_change_details(days=30)
-        mutual_follows = db.get_mutual_follows()
-        advanced_metrics = db.get_advanced_metrics()
-        if advanced_metrics is None:
-            advanced_metrics = {}
-        top_interactors = db.get_top_interactors(days=30, limit=20)
-        muted_accounts = db.get_muted_accounts_with_profile()
-        blocked_accounts = db.get_blocked_accounts_with_profile()
-        hidden_categories = {
-            "muted": {"accounts": muted_accounts, "count": len(muted_accounts)},
-            "blocked": {"accounts": blocked_accounts, "count": len(blocked_accounts)},
-        }
+@app.route("/<path:path>")
+def serve_static(path):
+    """Serve static files or fallback to index.html for SPA routing"""
+    # Check if the path is an API route (don't intercept those)
+    if path.startswith('api/'):
+        return jsonify({"error": "Not found"}), 404
 
-        # Get top posts by engagement
-        top_posts = []
-        with db.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1 FROM post_engagement LIMIT 1")
-            if cursor.fetchone():
-                cursor.execute(
-                    """
-                    SELECT post_uri, post_text, like_count, repost_count, reply_count, quote_count,
-                           bookmark_count, created_at, indirect_likes, indirect_reposts, indirect_replies, indirect_bookmarks
-                    FROM post_engagement
-                    WHERE (post_uri, collection_date) IN (
-                        SELECT post_uri, MAX(collection_date)
-                        FROM post_engagement
-                        GROUP BY post_uri
-                    )
-                    ORDER BY (like_count + repost_count * 2 + reply_count * 3 + bookmark_count * 2) DESC
-                    LIMIT 10
-                """
-                )
-                for row in cursor.fetchall():
-                    top_posts.append(
-                        {
-                            "uri": row[0],
-                            "text": row[1],
-                            "likes": row[2],
-                            "reposts": row[3],
-                            "replies": row[4],
-                            "quotes": row[5],
-                            "bookmarks": row[6],
-                            "created_at": row[7],
-                            "indirect_likes": row[8] or 0,
-                            "indirect_reposts": row[9] or 0,
-                            "indirect_replies": row[10] or 0,
-                            "indirect_bookmarks": row[11] or 0,
-                        }
-                    )
+    # Try to serve the static file
+    static_file = os.path.join(app.static_folder, path)
+    if os.path.isfile(static_file):
+        return send_from_directory(app.static_folder, path)
 
-        # Prepare data for template
-        data = {
-            "last_updated": last_updated,
-            "stats": stats,
-            "unfollowers": unfollowers,
-            "non_mutual": non_mutual,
-            "followers_only": followers_only,
-            "mutual_follows": mutual_follows,
-            "hidden_analytics": hidden_analytics,
-            "hidden_categories": hidden_categories,
-            "change_history": change_history,
-            "top_posts": top_posts,
-            "advanced_metrics": advanced_metrics,
-            "top_interactors": top_interactors,
-            "bluesky_handle": Config.BLUESKY_HANDLE,
-            "auth_enabled": Config.AUTH_ENABLED,
-            "app_version": Config.APP_VERSION,
-            "app_revision": Config.APP_REVISION,
-            "app_build_date": Config.APP_BUILD_DATE,
-        }
-
-        # Render template
-        html = get_report_html(data)
-        return html
-
-    except Exception as e:
-        logger.error(f"/report error: {e}")
-        import traceback
-
-        error_html = (
-            "<h1>Error loading report</h1><p>"
-            + str(e)
-            + "</p><pre>"
-            + traceback.format_exc()
-            + "</pre>"
-        )
-        return error_html, 500
+    # Fallback to index.html for SPA client-side routing
+    return send_from_directory(app.static_folder, 'index.html')
 
 
 @app.route("/api/hidden-analytics")
