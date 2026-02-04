@@ -217,6 +217,42 @@ def api_stats():
         return jsonify({"error": "Internal error"}), 500
 
 
+@app.route("/api/version")
+def api_version():
+    """Return build/version metadata."""
+    return jsonify(
+        {
+            "version": Config.APP_VERSION,
+            "revision": Config.APP_REVISION,
+            "build_date": Config.APP_BUILD_DATE,
+        }
+    )
+
+
+@app.route("/api/profile")
+def api_profile():
+    """Get tracked user's profile info"""
+    try:
+        # Get user profile from database if available
+        profile = db.get_user_profile()
+        api_requests.labels(endpoint="/api/profile", status="success").inc()
+        return jsonify({
+            "handle": Config.BLUESKY_HANDLE,
+            "display_name": profile.get("display_name") if profile else None,
+            "avatar": profile.get("avatar") if profile else None,
+            "bio": profile.get("bio") if profile else None,
+        })
+    except Exception as e:
+        logger.error(f"/api/profile error: {e}")
+        api_requests.labels(endpoint="/api/profile", status="error").inc()
+        return jsonify({
+            "handle": Config.BLUESKY_HANDLE,
+            "display_name": None,
+            "avatar": None,
+            "bio": None,
+        })
+
+
 @app.route("/api/unfollowers")
 def api_unfollowers():
     """List of recent unfollowers"""
@@ -462,6 +498,9 @@ def report():
             "top_interactors": top_interactors,
             "bluesky_handle": Config.BLUESKY_HANDLE,
             "auth_enabled": Config.AUTH_ENABLED,
+            "app_version": Config.APP_VERSION,
+            "app_revision": Config.APP_REVISION,
+            "app_build_date": Config.APP_BUILD_DATE,
         }
 
         # Render template

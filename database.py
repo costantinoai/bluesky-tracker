@@ -712,6 +712,12 @@ class Database:
                 f"Changes detected: {unfollower_count} unfollowers, {new_follower_count} new followers"
             )
 
+    def get_user_profile(self):
+        """Get the tracked user's profile (basic info from config)"""
+        # Profile is configured, not stored in DB
+        # Avatar could be fetched from public API if needed
+        return None
+
     def get_stats(self, days=30):
         """Get stats for widget display"""
         with self.get_connection() as conn:
