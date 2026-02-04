@@ -782,8 +782,8 @@ class BlueskyCollector:
             else:
                 logger.info("Auth disabled - skipping interactions feature")
 
-            # 11. Detect and record changes
-            self.db.detect_changes(collection_date)
+            # 11. Detect and record changes (pass DID to verify unfollowers)
+            self.db.detect_changes(collection_date, user_did=did)
 
             # Calculate duration
             duration = (datetime.now() - start_time).total_seconds()

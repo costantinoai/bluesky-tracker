@@ -8,6 +8,31 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _verify_still_follows(follower_did: str, user_did: str) -> bool:
+    """
+    Verify if follower_did still follows user_did by checking their following list.
+
+    This helps filter out false unfollower detections caused by API pagination issues.
+    Returns True if they still follow, False if they don't.
+    """
+    # Import here to avoid circular imports
+    from public_api import PublicAPIClient
+
+    try:
+        client = PublicAPIClient()
+        # Fetch the potential unfollower's following list
+        following = client.get_all_following(follower_did)
+        # Check if user_did is in their following list
+        for account in following:
+            if account.get("did") == user_did:
+                return True
+        return False
+    except Exception as e:
+        logger.warning(f"Failed to verify if {follower_did} still follows: {e}")
+        # On error, assume they did unfollow (don't block the detection)
+        return False
+
+
 class Database:
     def __init__(self, db_path=Config.DATABASE_PATH):
         self.db_path = db_path
@@ -541,8 +566,16 @@ class Database:
                     f"Saved daily counts - Hidden: {hidden_followers} followers ({muted_count} muted, {blocked_count} blocked, {suspected} suspected blocks/suspensions)"
                 )
 
-    def detect_changes(self, collection_date):
-        """Compare with previous day to detect changes"""
+    def detect_changes(self, collection_date, user_did: str = None):
+        """
+        Compare with previous day to detect changes.
+
+        Args:
+            collection_date: The date of the current collection
+            user_did: The DID of the tracked user. If provided, unfollowers will be
+                      verified by checking if they still follow this user (prevents
+                      false positives from API pagination issues).
+        """
         collection_date = format_sqlite_date(collection_date)
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -550,10 +583,10 @@ class Database:
             # Get previous collection date
             cursor.execute(
                 """
-                SELECT DISTINCT collection_date 
-                FROM followers_snapshot 
+                SELECT DISTINCT collection_date
+                FROM followers_snapshot
                 WHERE collection_date < ?
-                ORDER BY collection_date DESC 
+                ORDER BY collection_date DESC
                 LIMIT 1
             """,
                 (collection_date,),
@@ -581,7 +614,7 @@ class Database:
 
                 cursor.execute(
                     """
-                    INSERT OR REPLACE INTO daily_metrics 
+                    INSERT OR REPLACE INTO daily_metrics
                     (metric_date, follower_count, following_count, unfollower_count, new_follower_count)
                     VALUES (?, ?, ?, 0, 0)
                 """,
@@ -591,20 +624,45 @@ class Database:
 
             prev_date = prev_row[0]
 
-            # Detect unfollowers (in previous but not in current)
-            # Use INSERT OR IGNORE to prevent duplicates if detect_changes runs multiple times
+            # Detect potential unfollowers (in previous but not in current)
+            # First SELECT them, then verify before inserting
             cursor.execute(
                 """
-                INSERT OR IGNORE INTO follower_changes (change_date, change_type, did, handle)
-                SELECT ?, 'unfollowed', prev.did, prev.handle
+                SELECT prev.did, prev.handle
                 FROM followers_snapshot prev
                 LEFT JOIN followers_snapshot curr
                     ON prev.did = curr.did AND curr.collection_date = ?
                 WHERE prev.collection_date = ? AND curr.did IS NULL
             """,
-                (collection_date, collection_date, prev_date),
+                (collection_date, prev_date),
             )
-            unfollower_count = cursor.rowcount
+            potential_unfollowers = cursor.fetchall()
+
+            # Verify and insert unfollowers
+            unfollower_count = 0
+            for row in potential_unfollowers:
+                unfollower_did = row[0]
+                unfollower_handle = row[1]
+
+                # If user_did provided, verify the unfollow before recording
+                if user_did:
+                    if _verify_still_follows(unfollower_did, user_did):
+                        logger.info(
+                            f"False positive: {unfollower_handle} still follows (API pagination issue)"
+                        )
+                        continue
+
+                # Verified unfollower - insert into follower_changes
+                cursor.execute(
+                    """
+                    INSERT OR IGNORE INTO follower_changes (change_date, change_type, did, handle)
+                    VALUES (?, 'unfollowed', ?, ?)
+                """,
+                    (collection_date, unfollower_did, unfollower_handle),
+                )
+                if cursor.rowcount > 0:
+                    unfollower_count += 1
+                    logger.info(f"Verified unfollower: {unfollower_handle}")
 
             # Detect new followers
             # Use INSERT OR IGNORE to prevent duplicates if detect_changes runs multiple times
@@ -637,7 +695,7 @@ class Database:
             # Save metrics
             cursor.execute(
                 """
-                INSERT OR REPLACE INTO daily_metrics 
+                INSERT OR REPLACE INTO daily_metrics
                 (metric_date, follower_count, following_count, unfollower_count, new_follower_count)
                 VALUES (?, ?, ?, ?, ?)
             """,
@@ -739,14 +797,22 @@ class Database:
             }
 
     def get_unfollowers(self, days=30):
-        """Get list of unfollowers in last N days"""
+        """
+        Get list of unfollowers in last N days.
+
+        Deduplicates by DID - if the same person unfollowed multiple times,
+        only shows the most recent unfollow event.
+        """
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cutoff_date = (date.today() - timedelta(days=days)).isoformat()
+            # Use GROUP BY to deduplicate by DID, keeping only the most recent unfollow
             cursor.execute(
                 """
-                SELECT handle, did, change_date FROM follower_changes
+                SELECT handle, did, MAX(change_date) as change_date
+                FROM follower_changes
                 WHERE change_type = 'unfollowed' AND change_date > ?
+                GROUP BY did
                 ORDER BY change_date DESC
             """,
                 (cutoff_date,),
